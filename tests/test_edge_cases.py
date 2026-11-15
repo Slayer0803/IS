@@ -15,7 +15,7 @@ def test_empty_html_handling():
 
 
 def test_malformed_html_handling():
-    malformed = "<html><head><title>Unclosed Header<body><form action='bad'><input type=password<div>Missing tags"
+    malformed = "<html><head><title>Unclosed Header</title><body><div>Unclosed Div<form action='bad'><input type=password<div>Missing tags"
     res = extract_html_features(malformed, base_url="https://example.com")
     assert res["features"]["has_password_field"] is True
     assert res["features"]["num_forms"] >= 1

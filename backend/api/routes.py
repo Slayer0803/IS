@@ -226,17 +226,19 @@ def serve_test_page(filename: str):
             detail="Requested test page is not in the authorized demonstration registry."
         )
 
-    resolved_path = (TEST_PAGES_DIR / filename).resolve()
+    raw_path = TEST_PAGES_DIR / filename
 
-    # Verify containment within TEST_PAGES_DIR
-    if not resolved_path.is_relative_to(TEST_PAGES_DIR) or not resolved_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File containment check failed.")
-
-    # Reject symlinks
-    if resolved_path.is_symlink():
+    # Reject symlinks immediately before path resolution
+    if raw_path.is_symlink():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Symlinked test files are prohibited."
         )
+
+    resolved_path = raw_path.resolve()
+
+    # Verify containment within TEST_PAGES_DIR
+    if not resolved_path.is_relative_to(TEST_PAGES_DIR) or not resolved_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File containment check failed.")
 
     return FileResponse(resolved_path, media_type="text/html")
