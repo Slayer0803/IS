@@ -132,6 +132,25 @@ def extract_html_features(html_content: str, base_url: str = "") -> Dict[str, An
         has_password_field = True
         has_login_form = True
 
+    # Regex fallback for forms in malformed HTML (e.g. unclosed raw-text <title> swallowing body in html.parser)
+    if num_forms == 0:
+        raw_form_matches = list(re.finditer(r'<form\b([^>]*)>', html_content, re.IGNORECASE))
+        if raw_form_matches:
+            num_forms = len(raw_form_matches)
+            for fm in raw_form_matches:
+                form_tag = fm.group(0)
+                action_match = re.search(r'action=[\'"]?([^\'"\s>]+)', form_tag, re.IGNORECASE)
+                if action_match:
+                    action = action_match.group(1).strip()
+                    if action.startswith(("http://", "https://")):
+                        action_domain = urlparse(action).hostname or ""
+                        if base_domain and action_domain and base_domain != action_domain:
+                            cross_domain_forms.append({
+                                "form_action": action,
+                                "action_domain": action_domain,
+                                "base_domain": base_domain
+                            })
+
     # Check for sensitive inputs (SSN, PIN, CVV, seed phrase, crypto wallet)
     has_sensitive_fields = False
     sensitive_keywords = ["ssn", "pin", "cvv", "seed", "mnemonic", "card_number", "private_key", "secret_key"]

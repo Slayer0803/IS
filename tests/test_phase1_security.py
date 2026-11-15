@@ -89,20 +89,32 @@ def test_serve_test_page_symlink_rejection(tmp_path):
     target_file = tmp_path / "target.html"
     target_file.write_text("dummy", encoding="utf-8")
 
+    can_symlink = False
     try:
-        try:
-            symlink_path.symlink_to(target_file)
-        except (OSError, NotImplementedError):
-            pytest.skip("Symlink creation not supported in current environment.")
+        symlink_path.symlink_to(target_file)
+        can_symlink = True
+    except (OSError, NotImplementedError):
+        pass
 
+    if can_symlink:
+        try:
+            with patch("backend.api.routes.ALLOWED_FILENAMES", {"symlink_test.html"}):
+                with pytest.raises(HTTPException) as exc_info:
+                    serve_test_page("symlink_test.html")
+                assert exc_info.value.status_code == 400
+                assert "Symlinked" in exc_info.value.detail
+        finally:
+            if symlink_path.is_symlink() or symlink_path.exists():
+                symlink_path.unlink()
+    else:
+        # On environments lacking OS unprivileged symlink creation (e.g. Windows non-admin),
+        # verify that any path returning is_symlink() == True is strictly rejected with HTTP 400
         with patch("backend.api.routes.ALLOWED_FILENAMES", {"symlink_test.html"}):
-            with pytest.raises(HTTPException) as exc_info:
-                serve_test_page("symlink_test.html")
-            assert exc_info.value.status_code == 400
-            assert "Symlinked" in exc_info.value.detail
-    finally:
-        if symlink_path.is_symlink() or symlink_path.exists():
-            symlink_path.unlink()
+            with patch("pathlib.Path.is_symlink", return_value=True):
+                with pytest.raises(HTTPException) as exc_info:
+                    serve_test_page("symlink_test.html")
+                assert exc_info.value.status_code == 400
+                assert "Symlinked" in exc_info.value.detail
 
 
 def test_ssrf_rejects_localhost_test_page_shortcut():
