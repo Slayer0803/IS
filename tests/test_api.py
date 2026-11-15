@@ -38,7 +38,7 @@ def test_analyze_rejection_on_dangerous_scheme():
 
 
 def test_analyze_safe_local_test_page():
-    req = ScanRequest(url="http://localhost:8000/test-pages/legitimate_portal.html")
+    req = ScanRequest(test_page_id="legit-portal")
     res = analyze_url_endpoint(req)
     assert res["classification"] == "SAFE"
     assert res["risk_score"] < 0.35
@@ -48,7 +48,7 @@ def test_analyze_safe_local_test_page():
 
 
 def test_analyze_phishing_local_test_page():
-    req = ScanRequest(url="http://localhost:8000/test-pages/fake_login_page.html")
+    req = ScanRequest(test_page_id="fake-login")
     res = analyze_url_endpoint(req)
     assert res["classification"] == "PHISHING"
     assert res["risk_score"] >= 0.65
@@ -58,7 +58,7 @@ def test_analyze_phishing_local_test_page():
 
 def test_scan_crud_lifecycle():
     # 1. Trigger an analysis to create a record
-    req = ScanRequest(url="http://localhost:8000/test-pages/legitimate_portal.html")
+    req = ScanRequest(test_page_id="legit-portal")
     res = analyze_url_endpoint(req)
     scan_id = res["id"]
     assert scan_id is not None
@@ -87,3 +87,17 @@ def test_dashboard_stats():
     assert "phishing_count" in stats
     assert "safe_count" in stats
     assert "average_risk_score" in stats
+
+
+def test_httpx_api_request_payload():
+    """Phase 4: API client integration test with httpx."""
+    import httpx
+    with httpx.Client() as client:
+        req = client.build_request(
+            "POST",
+            "http://127.0.0.1:8000/api/analyze",
+            json={"test_page_id": "fake-login"},
+            headers={"Content-Type": "application/json"}
+        )
+        assert req.method == "POST"
+        assert b"fake-login" in req.content

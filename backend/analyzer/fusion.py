@@ -124,7 +124,7 @@ class MultimodalFusionEngine:
             else:
                 final_risk = 0.35
                 classification = "SUSPICIOUS"
-                signal_agreement = 0.30
+                signal_agreement = 0.25
                 diag_msg = unreachable_reason[:80] if unreachable_reason else "Host resolution failed / Network timeout"
                 summary_points = [
                     "⚠️ WARNING: Target host is offline, unreachable, or does not exist.",
@@ -260,7 +260,7 @@ class MultimodalFusionEngine:
             summary_points.append(ind)
 
         if not summary_points:
-            summary_points = ["Multimodal signals verified within safe operational baselines."]
+            summary_points = ["Multimodal signals verified within safe operational baselines. Legitimate domain structure and content verified."]
 
         categorized_indicators = {
             "critical": [p for p in summary_points if any(w in p.lower() for w in ["impersonation", "harvest", "scareware", "cross-domain"])],

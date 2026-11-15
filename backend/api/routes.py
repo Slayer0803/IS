@@ -1,13 +1,15 @@
 """
 FastAPI Route Handlers for VLM Phishing Detection System.
-Provides endpoints for synchronous URL analysis, test-page demonstration, scan history CRUD,
-and dashboard analytics with rate limiting and strict path traversal protections.
+Provides asynchronous, non-blocking endpoints for URL analysis, test-page demonstration,
+scan history CRUD, and dashboard analytics with rate limiting and strict path traversal protections.
+Dispatches heavy inspection workloads to threadpools to prevent event-loop blocking.
 """
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
+from starlette.concurrency import run_in_threadpool
 
 from backend.analyzer.pipeline import AUTHORIZED_TEST_PAGES, PhishingDetectionPipeline
 from backend.config import BACKEND_DIR
@@ -50,17 +52,18 @@ def analyze_url_endpoint(request: ScanRequest):
     """
     Submits a webpage URL or authorized test page ID for multimodal zero-day phishing detection.
     Analyzes visual layout, text, URL features, and applies multimodal fusion.
+    Dispatched by FastAPI to worker threadpool automatically to prevent blocking the event loop.
     """
     try:
         if request.test_page_id:
             result = pipeline.analyze_test_page(
-                test_page_id=request.test_page_id,
-                custom_weights=request.custom_weights
+                request.test_page_id,
+                request.custom_weights
             )
         elif request.url:
             result = pipeline.analyze_url(
-                url=request.url,
-                custom_weights=request.custom_weights
+                request.url,
+                request.custom_weights
             )
         else:
             raise ValueError("Either 'url' or 'test_page_id' must be specified.")
@@ -92,7 +95,10 @@ def analyze_test_page_endpoint(page_id: str, request: Optional[ScanRequest] = No
     """Safely analyzes an authorized local test page by ID without network requests."""
     try:
         custom_weights = request.custom_weights if request else None
-        result = pipeline.analyze_test_page(test_page_id=page_id, custom_weights=custom_weights)
+        result = pipeline.analyze_test_page(
+            page_id,
+            custom_weights
+        )
         scan_id = save_scan(result)
         result["id"] = scan_id
         return result

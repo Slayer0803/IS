@@ -102,7 +102,7 @@ export default function RiskGauge({ classification, riskScore, confidence, isUnr
         <div className="mt-5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center space-x-2.5">
           <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <span>
-            <strong>Offline Host Notice:</strong> The target server is currently unreachable or does not resolve. Live DOM structures and rendered visual canvas were unavailable. Confidence is intentionally reduced to reflect inspection uncertainty.
+            <strong>Offline Host Warning:</strong> Unreachable does NOT mean safe. Automated inspection cannot certify an offline host as legitimate. Attackers frequently dismantle zero-day phishing campaigns shortly after credential harvesting. Confidence is intentionally reduced to reflect inspection uncertainty.
           </span>
         </div>
       )}

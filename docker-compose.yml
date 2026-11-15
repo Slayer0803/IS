@@ -6,18 +6,30 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: aegis_vlm_backend
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
     ports:
       - "8000:8000"
     environment:
       - HOST=0.0.0.0
       - PORT=8000
       - DEBUG=False
+      - ENVIRONMENT=production
       - VLM_BACKEND=heuristic
       - SSRF_PROTECTION_ENABLED=True
-      - ALLOW_LOCAL_TEST_PAGES=True
+      - RATE_LIMIT_PER_MINUTE=60
+      - MAX_CONCURRENT_BROWSERS=3
+      - ENABLE_ML_BASELINE=True
     volumes:
-      - ./backend/data:/app/backend/data
-      - ./temp_screenshots:/app/temp_screenshots
+      - backend_data:/app/backend/data
+      - temp_screenshots:/app/temp_screenshots
+    networks:
+      - backend_net
     restart: unless-stopped
 
   frontend:
@@ -25,9 +37,28 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: aegis_vlm_frontend
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     ports:
       - "5173:80"
     depends_on:
       - backend
+    networks:
+      - backend_net
+      - frontend_net
     restart: unless-stopped
 
+volumes:
+  backend_data:
+  temp_screenshots:
+
+networks:
+  backend_net:
+    driver: bridge
+  frontend_net:
+    driver: bridge

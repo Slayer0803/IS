@@ -4,374 +4,373 @@
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![React + Vite](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61DAFB.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-38B2AC.svg)](https://tailwindcss.com/)
+[![Pytest Suite](https://img.shields.io/badge/Tests-72%20Passed-brightgreen.svg)](https://pytest.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-An AI-powered, multimodal cybersecurity system designed to identify and explain **previously unseen, zero-day phishing websites**. By integrating **computer vision and Vision-Language Models (VLMs)** with **semantic NLP text analysis**, **DOM structure extraction**, and **URL lexical heuristics**, Aegis-VLM detects brand impersonation, urgent coercion, and credential harvesting interfaces without relying on outdated domain blacklists or predefined signatures.
+An AI-powered, multimodal cybersecurity platform engineered to detect and explain **novel zero-day phishing websites**. By corroborating **visual brand discrepancy**, **DOM structure**, **NLP semantic coercion**, and **URL lexical heuristics**, the system identifies brand impersonation, urgent social engineering, and credential harvesting without relying on outdated domain blacklists or static keyword signatures.
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [Problem Statement](#2-problem-statement)
-3. [Why Traditional Detection Fails Against Zero-Day Attacks](#3-why-traditional-detection-fails-against-zero-day-attacks)
-4. [Why Visual Analysis Matters](#4-why-visual-analysis-matters)
-5. [Why Language & Semantic Analysis Matters](#5-why-language--semantic-analysis-matters)
-6. [Why Vision-Language Models (VLMs) Excel](#6-why-vision-language-models-vlms-excel)
-7. [System Architecture](#7-system-architecture)
-8. [Technology Stack](#8-technology-stack)
-9. [Installation & Setup](#9-installation--setup)
-10. [Running the Backend & Frontend](#10-running-the-backend--frontend)
-11. [Model Configuration & Modular Backends](#11-model-configuration--modular-backends)
-12. [Dataset Pipeline & Domain-Aware Splitting](#12-dataset-pipeline--domain-aware-splitting)
-13. [Zero-Day Evaluation Methodology](#13-zero-day-evaluation-methodology)
-14. [5-Model Benchmark Comparison](#14-5-model-benchmark-comparison)
-15. [API Documentation](#15-api-documentation)
-16. [Security Engineering & Sandboxing](#16-security-engineering--sandboxing)
-17. [Demonstration Guide](#17-demonstration-guide)
-18. [Known Limitations](#18-known-limitations)
-19. [Future Enhancements](#19-future-enhancements)
-20. [Ethical Considerations](#20-ethical-considerations)
+1. [System Overview & Zero-Day Detection Concept](#1-system-overview--zero-day-detection-concept)
+2. [Threat Model & Security Architecture](#2-threat-model--security-architecture)
+3. [Multimodal Scoring Cascade & Additive Threat Rules](#3-multimodal-scoring-cascade--additive-threat-rules)
+4. [Domain Trust & User-Content Infrastructure Disqualification](#4-domain-trust--user-content-infrastructure-disqualification)
+5. [Baseline ML Model Integration](#5-baseline-ml-model-integration)
+6. [System Architecture & Dataflow](#6-system-architecture--dataflow)
+7. [Installation & Setup](#7-installation--setup)
+8. [Running with vs. Without Heavy VLM Backends](#8-running-with-vs-without-heavy-vlm-backends)
+9. [Docker Hardened Deployment](#9-docker-hardened-deployment)
+10. [API Reference & Demonstration Workflow](#10-api-reference--demonstration-workflow)
+11. [Running Regression & Acceptance Tests](#11-running-regression--acceptance-tests)
+12. [Benchmark Evaluation & Honest Metrics](#12-benchmark-evaluation--honest-metrics)
+13. [Operational Limitations](#13-operational-limitations)
+14. [Ethical Considerations](#14-ethical-considerations)
 
 ---
 
-## 1. Project Overview
+## 1. System Overview & Zero-Day Detection Concept
 
-Modern phishing threat actors deploy short-lived, ephemeral web infrastructure that stays active for only hours before being abandoned. Traditional security solutions rely on reactive reputation databases, domain age thresholds, and static signature feeds. By the time a novel malicious domain is reported to Google Safe Browsing or PhishTank, thousands of users have already been compromised.
+Modern phishing campaigns employ ephemeral infrastructure—domains registered minutes prior to an attack wave, hosted on serverless platforms or low-cost TLDs, and taken down within 4 to 12 hours. Traditional blacklist feeds (Google Safe Browsing, PhishTank, Spamhaus) are purely reactive and offer zero coverage during the initial, most devastating hours of an attack.
 
-**Aegis-VLM** is an end-to-end multimodal detection engine that assesses web pages as a human cybersecurity analyst would:
-- What does the webpage **look like**? (Visual identity, brand logos, login cards)
-- What is the page **saying**? (Urgent threats, psychological coercion, credential requests)
-- How is the page **structured**? (Password fields, cross-domain form posts, hidden inputs)
-- Does the visual identity match the domain? (**Cross-Modal Discrepancy Detection**)
+### What Zero-Day Detection Means in This System:
+Zero-day phishing cannot be detected by domain age or URL reputation alone. Instead, detection relies on **Cross-Modal Discrepancy**:
+- **Visual Perception**: The rendered interface convincingly mimics a high-value brand (e.g. Microsoft 365, Google Workspace, Chase Bank, PayPal).
+- **Domain Identity**: The registrable apex domain (parsed using Public Suffix Rules via `tldextract`) does **NOT** belong to the official brand (e.g., `login.microsoftonline.security-verify.xyz` vs. `microsoft.com`).
+- **DOM & Form Action**: An authentication password field or cross-domain POST action routes credentials to external infrastructure.
+- **Semantic Manipulation**: Page copy leverages urgent threats of account termination, legal repercussions, or wire fraud.
 
----
-
-## 2. Problem Statement
-
-Zero-day phishing presents three core technical challenges:
-1. **Domain Anonymity**: Freshly registered domains (e.g., registered 30 minutes ago on cheap TLDs such as `.xyz`, `.top`, or dynamic cloud providers) have zero negative reputation history.
-2. **Cloaking & Polymorphism**: Attackers alter HTML tags, use obfuscated JavaScript, and randomize DOM element names to evade regex filters and naive lexical scrapers.
-3. **Visual Brand Mimicry**: Despite obfuscated code, the visual appearance *must* convincingly mimic trusted identity providers (Microsoft 365, Google Workspace, Chase Bank, PayPal) to trick the human victim into providing credentials.
+When an unauthorized domain presents high visual brand similarity coupled with credential collection, the system triggers a zero-day phishing verdict regardless of how newly registered or clean the domain appears to reputation engines.
 
 ---
 
-## 3. Why Traditional Detection Fails Against Zero-Day Attacks
+## 2. Threat Model & Security Architecture
 
-Traditional detection relies heavily on:
-- **Reputation Blacklists** (e.g., Google Safe Browsing, VirusTotal): Inherently reactive; provides zero coverage for the first 2-8 hours of an attack wave.
-- **Pure Lexical URL Models**: Attackers employ clean URL structures that mimic normal blogs or legitimate SaaS sub-paths.
-- **Pure HTML Matching**: Attackers embed login forms inside encrypted canvases, WebGL, SVG images, or heavily encoded JavaScript payloads that bypass static string parsers.
+Because this system ingests untrusted, potentially hostile URLs submitted by arbitrary users, security hardening is applied across all layers:
 
----
+### 2.1 Multi-Hop SSRF Defense-in-Depth
+- **Pre-execution DNS Validation**: Resolves hostnames prior to connection. Rejects loopback (`127.0.0.1/8`), RFC1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`), carrier-grade NAT (`100.64.0.0/10`), multicast (`224.0.0.0/4`), IPv6 unique local (`fc00::/7`), and AWS/GCP/Azure instance metadata endpoints (`169.254.169.254`, `fd00:ec2::254`).
+- **Playwright Subresource Interception**: Intercepts every subresource, script, stylesheet, WebSocket, and redirect via `context.route("**/*", handler)` and aborts any internal destination with `blockedbyclient`.
+- **Manual Redirect Validation**: Fallback HTTP fetcher disables automatic redirect following (`allow_redirects=False`) and inspects each hop manually up to 5 hops, aborting if any intermediate 3xx target resolves to a private IP.
+- **Byte-Streaming Limit**: Enforces `MAX_HTML_SIZE_BYTES` (5 MB) during HTTP streaming to prevent memory exhaustion from zip bombs or unbounded streams.
+- **Unresolvable Host Handling**: Unresolvable hostnames are explicitly classified as `UNREACHABLE` with reduced confidence, never marked as validated or safe.
 
-## 4. Why Visual Analysis Matters
+### 2.2 Path Containment & Local Demonstration Security
+- **No Localhost Exemption**: Localhost URLs are unconditionally rejected by SSRF guards.
+- **Allow-List Test Page Registry**: Controlled demonstration pages are selected solely through verified IDs (`legit-portal`, `fake-login`, `fake-bank`, `fake-account`).
+- **Path Containment Enforcement**: Demonstration files are resolved and verified against `resolved.is_relative_to(TEST_PAGES_DIR)`. Path traversal (`..`, `..%2f`), absolute paths, and symbolic links are strictly rejected with HTTP 400.
 
-The visual interface is the one component an attacker **cannot afford to obfuscate**. For the attack to succeed, the victim must perceive a familiar, trusted interface. 
-Visual analysis extracts:
-- Centered authentication cards and credential collection dialogues.
-- Color palettes and visual geometries characteristic of enterprise single-sign-on (SSO) interfaces.
-- Corporate branding banners paired with urgent security banners.
+### 2.3 Headless Browser Concurrency & Sandboxing
+- **Weakened Flags Removed**: Prohibits dangerous Chromium flags (`--no-sandbox`, `--disable-features=IsolateOrigins,site-per-process`, `--disable-web-security`).
+- **Concurrency Control**: Concurrency is throttled via an asynchronous `Semaphore(MAX_CONCURRENT_BROWSERS=3)` to protect CPU and memory.
+- **Context Isolation**: A single Chromium browser instance is maintained across requests, with every scan executing inside a fresh, isolated `BrowserContext` with blocked downloads, blocked popups, zero permissions, and disabled file choosers.
 
----
-
-## 5. Why Language & Semantic Analysis Matters
-
-Phishing campaigns rely on psychological coercion:
-- **Urgency Manipulation**: "Your account will be suspended within 24 hours."
-- **Fear Appeal**: "Unauthorized security incident detected from foreign IP."
-- **Financial Extortion**: "Billing invoice failure — update payment details immediately."
-
-The NLP semantic analyzer categorizes these behavioral intents and quantifies psychological manipulation separate from technical DOM anomalies.
-
----
-
-## 6. Why Vision-Language Models (VLMs) Excel
-
-Vision-Language Models bridge the semantic gap between visual perception and textual context. A VLM does not merely recognize an image; it understands **cross-modal relationships**:
-> *"The visual screenshot depicts an authentic Microsoft 365 login screen, but the domain context is `security-auth-update991.xyz`."*
-
-This **cross-modal discrepancy** is the single strongest indicator of a targeted zero-day phishing attack.
+### 2.4 API Abuse & Information Disclosure Prevention
+- **Sliding-Window Rate Limiting**: Per-IP sliding-window rate limiting (`60 req/min`) with automatic timestamp expiration.
+- **Custom Weights Validation**: The `custom_weights` parameter is strictly validated: values must be finite floating-point numbers between 0.0 and 1.0, and the sum must be greater than 0. Malformed weights return HTTP 422, preventing `ZeroDivisionError`.
+- **Sanitized 500 Responses**: Unhandled server exceptions log full stack traces internally while returning generic, safe error messages to clients.
+- **Repo Hygiene & Data Retention**: Base64 screenshot payloads are excluded from database persistence. Screenshots in `temp_screenshots/` and scans exceeding retention TTL (1 hour) are automatically purged.
 
 ---
 
-## 7. System Architecture
+## 3. Multimodal Scoring Cascade & Additive Threat Rules
 
-```mermaid
-flowchart TD
-    User["User / Security Analyst"] -->|Input URL| Guard["SSRF Guard & URL Validator"]
-    Guard -->|Safe Request| Renderer["Browser Engine / Playwright"]
-    Renderer -->|Webpage Screenshot| Vision["Visual / VLM Analyzer"]
-    Renderer -->|Rendered HTML DOM| DOM["DOM & Form Analyzer"]
-    DOM -->|Extracted Text| NLP["Semantic NLP Analyzer"]
-    Guard -->|Lexical Breakdown| URLFeat["URL Feature Extractor"]
-    
-    Vision -->|Visual Risk 0.40| Fusion["Multimodal Fusion Engine"]
-    DOM -->|HTML Risk 0.15| Fusion
-    NLP -->|Text Risk 0.25| Fusion
-    URLFeat -->|URL Risk 0.20| Fusion
-    
-    Fusion -->|Cross-Modal Amplification| Scorer["Risk Scoring & Thresholds"]
-    Scorer --> Verdict{"Risk Score"}
-    Verdict -->|0.00 - 0.30| Safe["🟢 SAFE / LEGITIMATE"]
-    Verdict -->|0.30 - 0.65| Suspicious["🟡 SUSPICIOUS"]
-    Verdict -->|0.65 - 1.00| Phish["🔴 ZERO-DAY PHISHING"]
-    
-    Scorer --> Explain["Explainability & Evidence Breakdown"]
-    Scorer --> DB[("SQLite Scan History")]
-    Explain --> UI["Cybersecurity Dashboard (React)"]
+The `MultimodalFusionEngine` combines modality sub-scores with documented, bounded threat rules:
+
+### 3.1 Modality Weighting Baseline
+- **URL Lexical Risk**: 20% weight (`WEIGHT_URL = 0.20`)
+- **Visual Brand & Layout Risk**: 40% weight (`WEIGHT_VISUAL = 0.40`)
+- **Text & Semantic Coercion**: 25% weight (`WEIGHT_TEXT = 0.25`)
+- **HTML & DOM Structure**: 15% weight (`WEIGHT_HTML = 0.15`)
+
+$$\text{Weighted Base Score} = 0.20 \cdot S_{\text{url}} + 0.40 \cdot S_{\text{visual}} + 0.25 \cdot S_{\text{text}} + 0.15 \cdot S_{\text{html}}$$
+
+### 3.2 Additive Threat Correlation Rules
+When specific high-risk cross-modal signals correlate, additive threat rules fire and are logged in the audit trail:
+
+1. **RULE_1_BRAND_IMPERSONATION_CREDENTIAL_HARVEST**:
+   - Condition: Visual brand impersonation detected + password field or credential harvesting form.
+   - Boost: +0.45 (Clamped to minimum 0.88).
+2. **RULE_2_CROSS_DOMAIN_FORM_POST**:
+   - Condition: Password or sensitive input element posts to an external third-party domain.
+   - Boost: +0.35 (Clamped to minimum 0.85).
+3. **RULE_3_EXCESSIVE_URGENCY_CREDENTIAL_INPUT**:
+   - Condition: Critical NLP urgency/coercion detected alongside credential input fields.
+   - Boost: +0.25 (Clamped to minimum 0.70).
+4. **RULE_4_SUSPICIOUS_TLD_CREDENTIAL_PROMPT**:
+   - Condition: High-risk suspicious TLD (`.xyz`, `.top`, `.sbs`, `.cc`) combined with login prompts.
+   - Boost: +0.20 (Clamped to minimum 0.65).
+
+### 3.3 Classification Thresholds
+- **SAFE**: Final Risk Score $< 0.30$
+- **SUSPICIOUS**: Final Risk Score between $0.30$ and $0.65$
+- **PHISHING**: Final Risk Score $> 0.65$
+
+---
+
+## 4. Domain Trust & User-Content Infrastructure Disqualification
+
+To prevent false positives on legitimate enterprise services while stopping attackers from abusing trusted infrastructure:
+- **Registrable Domain Matching**: Apex domains are resolved using Public Suffix Rules via `tldextract` (e.g. `login.microsoft.com` resolves to `microsoft.com`).
+- **Bounded Trust Discount**: High-reputation enterprise domains (`google.com`, `microsoft.com`, `apple.com`, `.gov`, `.edu`) receive a bounded discount of up to $-0.35$ on URL risk. Crucially, trust **never clamps final risk to 0.0 or overrides visual/DOM evidence**.
+- **User-Content Exclusion**: Multi-tenant PaaS and user-uploaded content hosts (`sites.google.com`, `github.io`, `pages.dev`, `firebaseapp.com`, `blob.core.windows.net`) are **explicitly disqualified** from domain trust. Phishing pages hosted on these platforms are analyzed under full threat rules and correctly flagged as phishing.
+
+---
+
+## 5. Baseline ML Model Integration
+
+The system incorporates a versioned scikit-learn Random Forest model (`baseline_model_v1.joblib`, `MODEL_VERSION = "v1.0-rf"`):
+- **18-Dimensional Feature Vector**:
+  1. `url_length`: Character length of the URL.
+  2. `num_dots`: Count of period characters in hostname and path.
+  3. `num_hyphens`: Subdomain and path hyphenation count.
+  4. `has_ip_address`: Binary flag indicating direct IP address navigation.
+  5. `num_subdomains`: Depth of subdomain labels.
+  6. `has_at_symbol`: Userinfo `@` credential masking flag.
+  7. `url_entropy`: Shannon entropy of the URL string.
+  8. `has_suspicious_tld`: High-risk TLD indicator.
+  9. `brand_in_subdomain`: Brand keyword spoofing count.
+  10. `has_password_field`: Presence of `<input type="password">`.
+  11. `has_cross_domain_form`: External credential POST action.
+  12. `num_forms`: Total HTML form count.
+  13. `num_inputs`: Total HTML input elements count.
+  14. `has_disabled_rightclick`: Context menu suppression evasion flag.
+  15. `text_risk`: Semantic NLP urgency and coercion score.
+  16. `urgency_count`: Count of psychological urgency keywords.
+  17. `credential_request_count`: Count of sensitive data collection phrases.
+  18. `visual_risk`: Perceptual brand discrepancy score.
+- **Inference Pipeline**: Loaded dynamically by `PhishingDetectionPipeline`. Feature predictions are returned under `analysis["ml_baseline"]` with class probabilities and feature vectors for transparent auditing.
+
+---
+
+## 6. System Architecture & Dataflow
+
+```
+[ User Browser / Analyst Dashboard ]
+               │
+               ▼
+   [ POST /api/analyze ] ──► [ Sliding-Window Rate Limiter & Auth ]
+               │
+               ▼
+     [ SSRF Guard & DNS Check ] ──(If unresolvable)──► [ SUSPICIOUS / Unreachable Verdict ]
+               │
+               ├──► [ BrowserWorker (Persistent Event Loop) ] ──► [ Pooled Chromium / Isolated Context ]
+               │                                                            │
+               │                                                            ▼
+               │                                                  [ Hardened Screenshot & HTML ]
+               │
+               ├──► [ URL Feature Extractor (tldextract & Shannon Entropy) ]
+               ├──► [ HTML Structural Parser (Forms, Password Inputs, Obfuscation) ]
+               ├──► [ Text Semantic Analyzer (NLP Urgency & Coercion Keywords) ]
+               ├──► [ DOM & Visual Brand Discrepancy Analyzer (Perceptual dHash) ]
+               ├──► [ Traditional ML Baseline (18-Feature Random Forest Inference) ]
+               │
+               ▼
+     [ Multimodal Fusion Engine (Additive Threat Rules & Calibrated Agreement) ]
+               │
+               ▼
+     [ SQLite Scan Persistence (Base64 Screenshots Excluded) ]
+               │
+               ▼
+     [ JSON Result + Transparent Audit Trail + Fired Rules ]
 ```
 
 ---
 
-## 8. Technology Stack
-
-### Backend
-- **Python 3.11+**
-- **FastAPI**: Asynchronous high-throughput REST API
-- **Uvicorn**: Production ASGI web server
-- **Pillow & OpenCV**: Visual feature extraction and synthetic screenshot fallback
-- **BeautifulSoup4**: Resilient HTML/DOM parsing
-- **Scikit-learn & Pandas**: Baseline machine learning and dataset pipeline
-- **Playwright**: Headless Chromium sandboxed page rendering
-- **SQLite3**: Lightweight local audit logging and statistics
-
-### Frontend
-- **React 18** + **Vite 5**
-- **Tailwind CSS**: Dark cyber-themed analytical dashboard
-- **Lucide React**: Vector iconography
-
----
-
-## 9. Installation & Setup
+## 7. Installation & Setup
 
 ### Prerequisites
-- Python 3.11 or higher
+- Python 3.11+
 - Node.js 18+ and npm
-- (Optional) Playwright Chromium: `playwright install chromium`
+- Playwright Chromium browser binaries
 
-### 1. Clone & Set Up Python Virtual Environment
-
+### Step 1: Clone Repository & Create Virtual Environment
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/vlm-phishing-detection.git
-cd vlm-phishing-detection
+git clone <repository-url>
+cd IS
 
-# Create and activate Python 3.11 virtual environment
 python -m venv .venv
 
-# On Windows (PowerShell):
-.\.venv\Scripts\Activate.ps1
 # On Linux/macOS:
 source .venv/bin/activate
 
-# Install backend dependencies
-pip install -r requirements.txt
+# On Windows:
+.venv\Scripts\activate
 ```
 
-### 2. Set Up Frontend
+### Step 2: Install Python Dependencies
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+playwright install chromium
+```
 
+### Step 3: Configure Environment Variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+Default configuration values:
+```ini
+HOST=0.0.0.0
+PORT=8000
+DEBUG=True
+ENVIRONMENT=development
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000
+VLM_BACKEND=heuristic
+WEIGHT_URL=0.20
+WEIGHT_VISUAL=0.40
+WEIGHT_TEXT=0.25
+WEIGHT_HTML=0.15
+THRESHOLD_SAFE=0.30
+THRESHOLD_SUSPICIOUS=0.65
+RATE_LIMIT_PER_MINUTE=60
+MAX_CONCURRENT_BROWSERS=3
+SCREENSHOT_TTL_SECONDS=3600
+ENABLE_ML_BASELINE=True
+```
+
+### Step 4: Install Frontend Dependencies
 ```bash
 cd frontend
 npm install
 cd ..
 ```
 
-### 3. Configure Environment
-
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-
 ---
 
-## 10. Running the Backend & Frontend
+## 8. Running with vs. Without Heavy VLM Backends
 
-### One-Click Launch (Windows)
-```powershell
-.\run.bat
+The platform is architected with modular visual backends:
+
+### Mode A: Lightweight Local Deployment (Default)
+Fast, deterministic computer vision utilizing perceptual difference hashing (`dHash`), layout geometry analysis, and registrable domain discrepancy. Requires **zero GPU memory** and zero external model downloads.
+```ini
+# in .env:
+VLM_BACKEND=heuristic
 ```
-*(Or double-click `run.bat` in File Explorer. This automatically activates `.venv` and launches both backend and frontend servers in separate windows.)*
-
-### CLI Terminal Scanner (No Browser Needed)
-```powershell
-# Directly scan any URL from terminal:
-.\.venv\Scripts\python.exe scan.py https://example.com
-
-# Or interactive prompt:
-.\.venv\Scripts\python.exe scan.py
-```
-
-### Start Backend API Server Manually
+Start backend:
 ```bash
-# From repository root (with .venv activated)
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-- API Swagger Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
-
-### Start Frontend Dashboard Manually
+Start frontend:
 ```bash
 cd frontend
 npm run dev
 ```
-- Web Application: [http://localhost:5173](http://localhost:5173)
+
+### Mode B: Deep HuggingFace Vision-Language Model
+Instantiates neural Vision-Language Models (e.g. `HuggingFaceTB/SmolVLM-Instruct`, `vikhyatk/moondream2`) for visual reasoning. Requires PyTorch and GPU acceleration.
+1. Install heavy dependencies:
+   ```bash
+   pip install -r requirements-vlm.txt
+   ```
+2. Update `.env`:
+   ```ini
+   VLM_BACKEND=huggingface
+   VLM_MODEL_ID=HuggingFaceTB/SmolVLM-Instruct
+   DEVICE=cuda
+   ```
+3. Start the application as normal.
 
 ---
 
-## 11. Model Configuration & Modular Backends
+## 9. Docker Hardened Deployment
 
-Aegis-VLM features a modular VLM interface (`BaseVLMAnalyzer`). The active backend is controlled via `.env`:
-
-```env
-# Options: "heuristic" (default, zero download), "mock", or "huggingface"
-VLM_BACKEND=heuristic
-VLM_MODEL_ID=HuggingFaceTB/SmolVLM-Instruct
-DEVICE=cpu
-```
-
-### Available Analyzers:
-1. **`HeuristicZeroDayVisualAnalyzer` (Default)**:
-   - High-precision, zero-download computer vision and brand-domain cross-modal verification.
-   - Ideal for laptops and standard PCs without GPUs.
-2. **`HuggingFaceVLMAnalyzer`**:
-   - Supports Hugging Face vision-language models such as `SmolVLM-Instruct`, `vikhyatk/moondream2`, or `Qwen2-VL`.
-   - Requires PyTorch and model weights.
-3. **`MockVLMAnalyzer`**:
-   - Fast deterministic responses for unit test suites and CI pipelines.
-
----
-
-## 12. Dataset Pipeline & Domain-Aware Splitting
-
-To train baseline models and evaluate zero-day detection without data contamination:
+The container environment implements non-root execution and security profiles:
 
 ```bash
-# Prepare dataset and enforce domain-aware campaign splits
-python training/prepare_dataset.py
+# Build and run using Docker Compose
+docker-compose up --build -d
+```
 
-# Extract numerical feature vectors
-python training/extract_features.py
+### Security Controls Applied in Docker:
+- **Unprivileged Non-Root User**: Runs under `appuser` (UID `10001`, GID `10001`).
+- **No Weakened Flags**: Chromium runs with default seccomp profiles, keeping full browser sandboxing enabled.
+- **Resource Constraints**: Backend container is restricted to 2.0 CPUs and 2048 MB RAM.
+- **Dual Bridge Networks**: `frontend_net` and `backend_net` isolate the database and internal services from public ingress.
+- **Healthchecks**: Built-in container healthprobe against `/health` with automatic restart on failure.
 
-# Train baseline traditional ML model (Random Forest)
+---
+
+## 10. API Reference & Demonstration Workflow
+
+### 10.1 Key Endpoints
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Service health status and active VLM backend identifier. |
+| `POST` | `/api/analyze` | Initiates multimodal scan of submitted URL or test page ID. |
+| `GET` | `/api/test-pages` | Lists authorized local test pages for safe zero-day demonstration. |
+| `GET` | `/api/scans` | Paginated scan history (limit, offset). |
+| `GET` | `/api/scans/{id}` | Detailed multimodal breakdown for a specific scan. |
+| `DELETE` | `/api/scans/{id}` | Purges scan record from database. |
+| `GET` | `/api/stats` | Aggregated dashboard telemetry (total scans, phishing rate). |
+| `GET` | `/api/metrics` | Serves authentic empirical zero-day evaluation metrics. |
+
+### 10.2 Safe Demonstration Analysis
+To demonstrate zero-day phishing detection without accessing live malicious websites, submit authorized test-page IDs:
+```bash
+# Analyze safe corporate portal
+curl -X POST http://localhost:8000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"test_page_id": "legit-portal"}'
+
+# Analyze Zero-Day Microsoft 365 credential harvesting page
+curl -X POST http://localhost:8000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"test_page_id": "fake-login"}'
+```
+
+---
+
+## 11. Running Regression & Acceptance Tests
+
+The test suite covers unit features, SSRF guards, scoring cascades, API contracts, and the 7 core acceptance criteria.
+
+```bash
+# Run entire test suite (72 tests)
+pytest tests/ -v
+```
+
+### Acceptance Test Suite (`tests/test_phase4_acceptance.py`):
+1. **Local File Read Prevention**: Path traversal (`..`, `..%2f`) rejected via HTTP 400; no file outside `test_pages` can be read.
+2. **SSRF Redirect & Subresource Defense**: 302 redirects to private IPs and Playwright subresources targeting metadata/loopback are blocked.
+3. **Evasion Resistance**: Hidden `"offline or unreachable"` HTML text cannot bypass detection; authentic phishing pages score `PHISHING`.
+4. **User-Content Host Security**: Credential phishing hosted on `sites.google.com` or `github.io` is strictly denied domain trust and scores `PHISHING`.
+5. **Robust Input Validation**: `custom_weights` with zeros, negatives, or NaN return HTTP 422, never causing a 500 error.
+6. **Authentic Metric Reporting**: `evaluate.py` generates verified `data/metrics.json` reflecting real zero-day campaign partitions.
+7. **Container Hardening**: Chromium runs without weakened `--no-sandbox` flags under non-root UID 10001.
+
+---
+
+## 12. Benchmark Evaluation & Honest Metrics
+
+To generate benchmark metrics across novel zero-day campaigns without training domain leakage:
+```bash
+# Train Random Forest baseline
 python training/train_classifier.py
-```
 
-The script outputs `baseline_model.joblib` and prints feature importances.
-
----
-
-## 13. Zero-Day Evaluation Methodology
-
-Standard evaluations often report inflated metrics because they randomly partition samples from the same phishing campaigns across train and test sets. 
-
-### Why Campaign-Aware Splitting is Critical:
-- If a phishing template for `paypal-login-scam.com` is in the training set, and a slightly modified variant `paypal-login-scam2.com` is in the test set, traditional models memorize the lexical and structural similarity.
-- **Our Methodology**: The test partition consists **exclusively of unseen campaigns on novel domains** (e.g., `x-auth-9941.xyz`, `secure-chase-portal8821.top`) that have **zero overlap** with training domains.
-
----
-
-## 14. 5-Model Benchmark Comparison
-
-Execute the evaluation benchmark:
-```bash
+# Run zero-day evaluation benchmark
 python training/evaluate.py
 ```
 
-### Benchmark Results on Unseen Zero-Day Campaigns:
-
-| Model Architecture | Accuracy | Precision | Zero-Day Recall | Zero-Day F1 | FPR | FNR |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Model 1: URL/HTML ML (Random Forest)** | 60.0% | 100.0% | 33.3% | 50.0% | 0.0% | **66.7%** |
-| **Model 2: Screenshot-Only Model** | 80.0% | 100.0% | 66.7% | 80.0% | 0.0% | 33.3% |
-| **Model 3: Text-Only Semantic Model** | 80.0% | 100.0% | 66.7% | 80.0% | 0.0% | 33.3% |
-| **Model 4: VLM Multimodal Model** | 100.0% | 100.0% | 100.0% | 100.0% | 0.0% | 0.0% |
-| **Model 5: Complete Multimodal Fusion** | **100.0%** | **100.0%** | **100.0%** | **100.0%** | **0.0%** | **0.0%** |
-
-### Key Findings:
-- Traditional URL/HTML classifiers suffer a **66.7% False Negative Rate** on zero-day attacks because the newly registered domains have clean reputation and normal lexical depth.
-- The **Multimodal VLM and Fusion pipelines achieve 100% Zero-Day Recall** by identifying the visual brand impersonation on an unverified domain.
+The benchmark saves results to `data/metrics.json` and reports:
+- **Precision, Recall, F1 Score, and PR-AUC** across all modalities.
+- **Strict Campaign-Aware Partitioning**: Zero domain overlap between training campaigns and test campaigns.
+- **False Positive Rate at 95% True Positive Rate**: Measures operational viability in production environments.
+- **Dynamic Frontend Integration**: The React dashboard displays actual empirical metrics from `GET /api/metrics` alongside exact sample sizes ($n$).
 
 ---
 
-## 15. API Documentation
+## 13. Operational Limitations
 
-### Analyze Endpoint
-`POST /api/analyze`
-```json
-{
-  "url": "http://localhost:8000/test-pages/fake_login_page.html"
-}
-```
-
-Response:
-```json
-{
-  "url": "http://localhost:8000/test-pages/fake_login_page.html",
-  "classification": "PHISHING",
-  "risk_score": 0.92,
-  "confidence": 0.92,
-  "sub_scores": {
-    "url_score": 0.35,
-    "visual_score": 0.85,
-    "text_score": 0.70,
-    "html_score": 0.65
-  },
-  "explanation": [
-    "Visual analysis identified brand impersonation of Microsoft / Office 365 on an unauthorized zero-day domain.",
-    "The page actively requests and harvests account credentials or passwords.",
-    "Form submissions are routed to an external third-party domain."
-  ]
-}
-```
+- **Multi-Step Authentication Workflows**: Single-page applications requiring SMS MFA prompts or multi-step reloads before rendering password fields may require extended interaction scripts.
+- **IP / Geographic Cloaking**: Malicious infrastructure that selectively displays 404 pages to automated scrapers while serving phishing payloads to human victims cannot be evaluated if cloaking is active during scan time.
+- **Offline / Unreachable Sites**: Sites that fail DNS resolution or drop network connections are classified as `SUSPICIOUS` with reduced confidence. The system explicitly reminds operators that **unreachable does not mean safe**, as attackers frequently dismantle zero-day infrastructure immediately after campaign execution.
 
 ---
 
-## 16. Security Engineering & Sandboxing
+## 14. Ethical Considerations
 
-Because this application interacts with potentially hostile web targets, strict security safeguards are enforced:
-1. **SSRF Guard (`backend/security/ssrf_guard.py`)**:
-   - Rejects non-HTTP(S) schemes (`file://`, `gopher://`, `ftp://`).
-   - Resolves domains to IP addresses before fetching; rejects loopback (`127.0.0.1`), private ranges (`10.0.0.0/8`, `192.168.0.0/16`), and cloud metadata (`169.254.169.254`).
-2. **Restricted Headless Browser**:
-   - Playwright Chromium runs with sandboxing flags and disabled GPU/extensions.
-3. **Execution Safety**:
-   - Downloaded scripts and files are never executed locally.
-   - Extracted HTML is sanitized with length limits to prevent parser denial-of-service.
-
----
-
-## 17. Demonstration Guide
-
-To demonstrate zero-day detection in a presentation without accessing live malware:
-1. Open the web interface at `http://localhost:5173`.
-2. Click any of the **Demonstration Presets**:
-   - **Legitimate Portal**: Evaluates safe cloud architecture documentation (Verdict: `SAFE`, Risk ~8%).
-   - **Zero-Day Microsoft Phish**: Evaluates credential harvesting modal with cross-domain post (Verdict: `PHISHING`, Risk ~92%).
-   - **Zero-Day Chase Banking**: Evaluates fraudulent wire alert with SSN capture (Verdict: `PHISHING`, Risk ~95%).
-   - **Zero-Day PayPal Verify**: Evaluates urgent account suspension with credit card fields (Verdict: `PHISHING`, Risk ~89%).
-3. Inspect the **"Why Was This Flagged?"** explainability section.
-4. Click **"5-Model Benchmark"** in the top navigation to present the experimental zero-day matrix.
-
----
-
-## 18. Known Limitations
-
-- **Heavily Dynamic JavaScript SPA**: Pages requiring multi-step interactive workflows before showing credential forms may require longer rendering timeouts.
-- **Resource Constraints**: Running large 7B+ VLMs locally requires high-VRAM GPUs. The included lightweight heuristic analyzer provides instant demonstration without GPU hardware.
-
----
-
-## 19. Future Enhancements
-
-- Integration with real-time Certificate Transparency logs for zero-hour stream analysis.
-- Optical Character Recognition (OCR) fine-tuning specifically for embedded logos inside complex background imagery.
-- Browser extension sidecar allowing client-side zero-day inference directly in user sessions.
-
----
-
-## 20. Ethical Considerations
-
-This project is developed solely for cybersecurity defense, threat intelligence, and academic research. The bundled test pages are safe local simulations that do not store, transmit, or harvest real user credentials.
-
+This project is developed exclusively for defensive cybersecurity research, threat analysis, and automated detection engineering. The bundled test pages are contained, non-functional simulations designed solely for demonstrating multimodal corroboration without harvesting or storing sensitive user credentials.

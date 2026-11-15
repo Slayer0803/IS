@@ -11,6 +11,7 @@ import logging
 import os
 import socket
 import sys
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -217,6 +218,40 @@ async def _ssrf_route_handler(route, request):
         return
 
     await route.continue_()
+
+
+class BrowserWorker:
+    """
+    Dedicated background worker thread running a persistent event loop for Playwright.
+    Eliminates per-request event-loop creation, avoids Windows loop-policy manipulation,
+    and enables non-blocking headless browser rendering across threadpool workers.
+    """
+    _loop: Optional[asyncio.AbstractEventLoop] = None
+    _thread: Optional[threading.Thread] = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_loop(cls) -> asyncio.AbstractEventLoop:
+        with cls._lock:
+            if cls._thread is None or not cls._thread.is_alive():
+                ready_event = threading.Event()
+
+                def _worker_entry():
+                    cls._loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(cls._loop)
+                    ready_event.set()
+                    cls._loop.run_forever()
+
+                cls._thread = threading.Thread(target=_worker_entry, daemon=True, name="PlaywrightWorker")
+                cls._thread.start()
+                ready_event.wait()
+            return cls._loop
+
+    @classmethod
+    def run_coroutine(cls, coro, timeout: Optional[float] = None):
+        loop = cls.get_loop()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result(timeout=timeout)
 
 
 class BrowserPool:
@@ -463,21 +498,16 @@ def capture_webpage(url: str, timeout_seconds: int = PAGE_FETCH_TIMEOUT_SECONDS)
     is_unreachable = False
     unreachable_reason = ""
 
-    # 2. Attempt Playwright headless rendering using pooled browser
+    # 2. Attempt Playwright headless rendering using dedicated browser worker
     try:
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            loop = asyncio.ProactorEventLoop()
-        else:
-            loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            pool = loop.run_until_complete(BrowserPool.get_instance())
-            image, html_content, redirect_count = loop.run_until_complete(
-                asyncio.wait_for(pool.capture(url, timeout_seconds), timeout=timeout_seconds + 5)
-            )
-        finally:
-            loop.close()
+        async def _do_capture():
+            pool = await BrowserPool.get_instance()
+            return await pool.capture(url, timeout_seconds)
+
+        image, html_content, redirect_count = BrowserWorker.run_coroutine(
+            _do_capture(),
+            timeout=timeout_seconds + 5
+        )
     except Exception as exc:
         logger.info(f"Playwright rendering skipped or unavailable ({exc}). Using direct fetch fallback.")
 

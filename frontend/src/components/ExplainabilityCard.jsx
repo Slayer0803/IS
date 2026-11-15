@@ -142,6 +142,14 @@ export default function ExplainabilityCard({ explanation, categorizedIndicators,
           )}
         </div>
       </div>
+
+      {/* Limitations and Data Operational Footnote */}
+      <div className="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-start space-x-2">
+        <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+        <span>
+          <strong>Operational Boundaries:</strong> Evaluation is conducted across rendered DOM structures, perceptual brand hash matching, and URL lexical patterns at inspection time. Sites with IP/geo-cloaking, CAPTCHA challenges, or post-render mutations must be monitored continuously; unreachable sites cannot be certified as safe.
+        </span>
+      </div>
     </div>
   );
 }
