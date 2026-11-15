@@ -1,19 +1,22 @@
 """
 End-to-End Multimodal Phishing Detection Pipeline.
 Coordinates URL validation, screenshot capture, DOM parsing, visual VLM reasoning,
-textual semantic analysis, feature fusion, and explainable reporting.
+traditional ML baseline inference, textual semantic analysis, feature fusion, and explainable reporting.
 Supports safe offline demonstration analysis of authorized local test pages without network calls.
 """
+import base64
+import io
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from backend.analyzer.fusion import MultimodalFusionEngine
+from backend.analyzer.ml_baseline import MLBaselineClassifier
 from backend.analyzer.text_analyzer import TextSemanticAnalyzer
 from backend.analyzer.vlm_analyzer import get_vlm_analyzer
 from backend.browser.screenshot import capture_webpage, generate_fallback_screenshot
-from backend.config import BACKEND_DIR
+from backend.config import BACKEND_DIR, ENABLE_ML_BASELINE
 from backend.security.html_features import extract_html_features
 from backend.security.ssrf_guard import validate_url_security
 from backend.security.url_features import extract_url_features
@@ -50,11 +53,13 @@ AUTHORIZED_TEST_PAGES = {
 class PhishingDetectionPipeline:
     """
     Main detection pipeline implementing zero-day multimodal phishing analysis.
+    Combines VLM reasoning with integrated ML baseline evaluation.
     """
 
     def __init__(self):
         self.vlm_analyzer = get_vlm_analyzer()
         self.text_analyzer = TextSemanticAnalyzer()
+        self.ml_classifier = MLBaselineClassifier()
         self.fusion_engine = MultimodalFusionEngine()
 
     def analyze_url(
@@ -113,7 +118,8 @@ class PhishingDetectionPipeline:
             domain_context=hostname,
             html_features=html_analysis["features"],
             url_context=url,
-            url_features=url_analysis
+            url_features=url_analysis,
+            is_synthetic=False
         )
         if is_unreachable:
             visual_analysis["visual_indicators"] = [
@@ -121,7 +127,17 @@ class PhishingDetectionPipeline:
                 "⚠️ Visual zero-day verification inconclusive for offline endpoint"
             ]
 
-        # 7. Multimodal Feature Fusion
+        # 7. Traditional ML Baseline Classifier (Phase 3.2 Integration)
+        ml_analysis = None
+        if ENABLE_ML_BASELINE:
+            ml_analysis = self.ml_classifier.predict(
+                url_features=url_analysis,
+                html_features=html_analysis,
+                text_features=text_analysis,
+                visual_features=visual_analysis
+            )
+
+        # 8. Multimodal Feature Fusion
         if custom_weights:
             fusion_engine = MultimodalFusionEngine(
                 w_url=custom_weights.get("url", 0.20),
@@ -141,40 +157,48 @@ class PhishingDetectionPipeline:
             unreachable_reason=unreachable_reason
         )
 
-        # 8. Assemble Unified Result Payload
+        analysis_dict = {
+            "url": url_analysis,
+            "visual": visual_analysis,
+            "text": text_analysis,
+            "html": {
+                "html_risk": html_analysis["html_risk"],
+                "indicators": html_analysis["indicators"],
+                "title": html_analysis["features"]["title"],
+                "headings": html_analysis["features"]["headings"],
+                "has_login_form": html_analysis["features"]["has_login_form"],
+                "has_password_field": html_analysis["features"]["has_password_field"],
+                "num_forms": html_analysis["features"]["num_forms"],
+                "num_links": html_analysis["features"]["num_links"],
+                "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
+                "external_link_ratio": html_analysis["features"]["external_link_ratio"],
+                "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
+            }
+        }
+        if ml_analysis:
+            analysis_dict["ml_baseline"] = ml_analysis
+
+        # 9. Assemble Unified Result Payload
         result = {
             "url": url,
             "hostname": hostname,
             "classification": fusion_result["classification"],
             "risk_score": fusion_result["risk_score"],
             "confidence": fusion_result["confidence"],
+            "signal_agreement": fusion_result.get("signal_agreement", fusion_result["confidence"]),
             "is_unreachable": is_unreachable,
             "unreachable_reason": unreachable_reason,
             "screenshot_preview": screenshot_preview,
-            "analysis": {
-                "url": url_analysis,
-                "visual": visual_analysis,
-                "text": text_analysis,
-                "html": {
-                    "html_risk": html_analysis["html_risk"],
-                    "indicators": html_analysis["indicators"],
-                    "title": html_analysis["features"]["title"],
-                    "headings": html_analysis["features"]["headings"],
-                    "has_login_form": html_analysis["features"]["has_login_form"],
-                    "has_password_field": html_analysis["features"]["has_password_field"],
-                    "num_forms": html_analysis["features"]["num_forms"],
-                    "num_links": html_analysis["features"]["num_links"],
-                    "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
-                    "external_link_ratio": html_analysis["features"]["external_link_ratio"],
-                    "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
-                }
-            },
+            "analysis": analysis_dict,
             "sub_scores": fusion_result["sub_scores"],
+            "fired_rules": fusion_result.get("fired_rules", []),
             "categorized_indicators": fusion_result["categorized_indicators"],
             "explanation": fusion_result["explanation_summary"],
             "meta": {
                 "vlm_backend": visual_analysis.get("backend", "heuristic"),
                 "redirects": redirect_count,
+                "ml_baseline_enabled": ENABLE_ML_BASELINE,
+                "ml_risk": ml_analysis.get("ml_risk") if ml_analysis else None
             }
         }
 
@@ -226,8 +250,18 @@ class PhishingDetectionPipeline:
             domain_context=hostname,
             html_features=html_analysis["features"],
             url_context=mock_url,
-            url_features=url_analysis
+            url_features=url_analysis,
+            is_synthetic=True
         )
+
+        ml_analysis = None
+        if ENABLE_ML_BASELINE:
+            ml_analysis = self.ml_classifier.predict(
+                url_features=url_analysis,
+                html_features=html_analysis,
+                text_features=text_analysis,
+                visual_features=visual_analysis
+            )
 
         if custom_weights:
             fusion_engine = MultimodalFusionEngine(
@@ -248,10 +282,30 @@ class PhishingDetectionPipeline:
             unreachable_reason=""
         )
 
-        import base64, io
         buffered = io.BytesIO()
         pil_image.save(buffered, format="PNG")
         screenshot_preview = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode('utf-8')}"
+
+        analysis_dict = {
+            "url": url_analysis,
+            "visual": visual_analysis,
+            "text": text_analysis,
+            "html": {
+                "html_risk": html_analysis["html_risk"],
+                "indicators": html_analysis["indicators"],
+                "title": html_analysis["features"]["title"],
+                "headings": html_analysis["features"]["headings"],
+                "has_login_form": html_analysis["features"]["has_login_form"],
+                "has_password_field": html_analysis["features"]["has_password_field"],
+                "num_forms": html_analysis["features"]["num_forms"],
+                "num_links": html_analysis["features"]["num_links"],
+                "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
+                "external_link_ratio": html_analysis["features"]["external_link_ratio"],
+                "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
+            }
+        }
+        if ml_analysis:
+            analysis_dict["ml_baseline"] = ml_analysis
 
         return {
             "url": mock_url,
@@ -259,33 +313,20 @@ class PhishingDetectionPipeline:
             "classification": fusion_result["classification"],
             "risk_score": fusion_result["risk_score"],
             "confidence": fusion_result["confidence"],
+            "signal_agreement": fusion_result.get("signal_agreement", fusion_result["confidence"]),
             "is_unreachable": False,
             "unreachable_reason": "",
             "screenshot_preview": screenshot_preview,
-            "analysis": {
-                "url": url_analysis,
-                "visual": visual_analysis,
-                "text": text_analysis,
-                "html": {
-                    "html_risk": html_analysis["html_risk"],
-                    "indicators": html_analysis["indicators"],
-                    "title": html_analysis["features"]["title"],
-                    "headings": html_analysis["features"]["headings"],
-                    "has_login_form": html_analysis["features"]["has_login_form"],
-                    "has_password_field": html_analysis["features"]["has_password_field"],
-                    "num_forms": html_analysis["features"]["num_forms"],
-                    "num_links": html_analysis["features"]["num_links"],
-                    "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
-                    "external_link_ratio": html_analysis["features"]["external_link_ratio"],
-                    "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
-                }
-            },
+            "analysis": analysis_dict,
             "sub_scores": fusion_result["sub_scores"],
+            "fired_rules": fusion_result.get("fired_rules", []),
             "categorized_indicators": fusion_result["categorized_indicators"],
             "explanation": fusion_result["explanation_summary"],
             "meta": {
                 "vlm_backend": visual_analysis.get("backend", "heuristic"),
                 "redirects": 0,
-                "test_page_id": test_page_id
+                "test_page_id": test_page_id,
+                "ml_baseline_enabled": ENABLE_ML_BASELINE,
+                "ml_risk": ml_analysis.get("ml_risk") if ml_analysis else None
             }
         }

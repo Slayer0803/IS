@@ -56,6 +56,9 @@ API_KEY: str = os.getenv("API_KEY", "")
 MAX_CONCURRENT_BROWSERS: int = int(os.getenv("MAX_CONCURRENT_BROWSERS", "3"))
 SCREENSHOT_TTL_SECONDS: int = int(os.getenv("SCREENSHOT_TTL_SECONDS", "3600")) # 1 hour
 
+# ML Baseline Configuration
+ENABLE_ML_BASELINE: bool = os.getenv("ENABLE_ML_BASELINE", "True").lower() in ("true", "1", "yes")
+
 # Database Configuration
 DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BACKEND_DIR / 'data' / 'phishing_scans.db'}")
 

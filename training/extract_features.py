@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import pandas as pd
 
-# Add project root to sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
@@ -49,7 +48,15 @@ def extract_features_from_sample(
     url_res = extract_url_features(url)
     html_res = extract_html_features(html, base_url=url)
     text_res = text_analyzer.analyze(text)
-    vis_res = vlm_analyzer.analyze(image=None, webpage_text=text, domain_context=url_res["features"]["hostname"])
+    vis_res = vlm_analyzer.analyze(
+        image=None,
+        webpage_text=text,
+        domain_context=url_res["features"]["hostname"],
+        html_features=html_res["features"],
+        url_context=url,
+        url_features=url_res,
+        is_synthetic=True
+    )
 
     f = url_res["features"]
     hf = html_res["features"]
@@ -98,17 +105,3 @@ def process_dataset(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     X = pd.DataFrame(feature_rows)[FEATURE_COLUMNS]
     y = pd.Series(labels, name="label")
     return X, y
-
-
-if __name__ == "__main__":
-    PROCESSED_DIR = BASE_DIR / "data" / "processed"
-    train_path = PROCESSED_DIR / "train_domain_aware.json"
-
-    if train_path.exists():
-        train_df = pd.read_json(train_path)
-        X, y = process_dataset(train_df)
-        print(f"[+] Feature matrix shape: {X.shape}, labels: {y.shape}")
-        print(f"[+] Feature columns: {FEATURE_COLUMNS}")
-    else:
-        print(f"[-] Training data not found at {train_path}. Run prepare_dataset.py first.")
-

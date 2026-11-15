@@ -1,72 +1,42 @@
-import React from 'react';
-import { X, Award, ShieldAlert, GitCompare, Zap, BarChart3, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Award, ShieldAlert, GitCompare, Zap, BarChart3, CheckCircle2, RefreshCw } from 'lucide-react';
+import { fetchBenchmarkMetrics } from '../services/api';
 
 export default function ModelComparisonModal({ isOpen, onClose }) {
+  const [metricsData, setMetricsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      fetchBenchmarkMetrics()
+        .then((data) => {
+          setMetricsData(data);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("Failed loading benchmark metrics:", err);
+          setError("Failed to load empirical benchmark metrics from server.");
+          setLoading(false);
+        });
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  // Real benchmark results computed across strictly partitioned zero-day test campaigns
-  const benchmarkModels = [
-    {
-      name: 'Model 1: URL/HTML Baseline (Random Forest)',
-      type: 'Traditional ML (Lexical/DOM)',
-      accuracy: '60.0%',
-      precision: '100.0%',
-      recall: '33.3%',
-      f1: '50.0%',
-      fpr: '0.0%',
-      fnr: '66.7%',
-      zeroDayNote: 'High False Negatives (66.7% miss rate): Fails on newly minted/unseen zero-day domains because they lack domain history and blacklist presence.',
-      highlight: false,
-    },
-    {
-      name: 'Model 2: Screenshot-Only Model',
-      type: 'Computer Vision Heuristics',
-      accuracy: '80.0%',
-      precision: '100.0%',
-      recall: '66.7%',
-      f1: '80.0%',
-      fpr: '0.0%',
-      fnr: '33.3%',
-      zeroDayNote: 'Detects visual login modals, but cannot independently verify domain discrepancy without URL context.',
-      highlight: false,
-    },
-    {
-      name: 'Model 3: Text-Only Semantic Model',
-      type: 'NLP / Social Engineering Engine',
-      accuracy: '80.0%',
-      precision: '100.0%',
-      recall: '66.7%',
-      f1: '80.0%',
-      fpr: '0.0%',
-      fnr: '33.3%',
-      zeroDayNote: 'Captures urgency and suspension coercion, but prone to misses on minimalist graphical logins.',
-      highlight: false,
-    },
-    {
-      name: 'Model 4: VLM Multimodal Model',
-      type: 'Vision-Language (SmolVLM / Layout)',
-      accuracy: '100.0%',
-      precision: '100.0%',
-      recall: '100.0%',
-      f1: '100.0%',
-      fpr: '0.0%',
-      fnr: '0.0%',
-      zeroDayNote: 'High zero-day detection: identifies brand impersonation and correlates textual credential requests simultaneously.',
-      highlight: false,
-    },
-    {
-      name: 'Model 5: Complete Multimodal Fusion System',
-      type: 'Dynamic Cross-Modal Fusion (Aegis-VLM)',
-      accuracy: '100.0%',
-      precision: '100.0%',
-      recall: '100.0%',
-      f1: '100.0%',
-      fpr: '0.0%',
-      fnr: '0.0%',
-      zeroDayNote: 'Optimal Zero-Day performance: Combines URL lexical signals, visual brand verification, semantic threats, and DOM cross-domain POST anomalies.',
-      highlight: true,
-    },
-  ];
+  const modelsList = metricsData?.models ? Object.entries(metricsData.models).map(([name, data]) => ({
+    name,
+    type: data.type,
+    accuracy: (data.metrics.accuracy * 100).toFixed(1) + '%',
+    precision: (data.metrics.precision * 100).toFixed(1) + '%',
+    recall: (data.metrics.recall * 100).toFixed(1) + '%',
+    f1: (data.metrics.f1 * 100).toFixed(1) + '%',
+    prAuc: data.metrics.pr_auc.toFixed(2),
+    fpr: (data.metrics.fpr * 100).toFixed(1) + '%',
+    zeroDayNote: data.zero_day_note,
+    highlight: name.includes('Complete Multimodal Fusion') || name.includes('Aegis-VLM')
+  })) : [];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -79,10 +49,10 @@ export default function ModelComparisonModal({ isOpen, onClose }) {
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                Zero-Day Phishing Model Comparison Matrix
+                Empirical Zero-Day Phishing Benchmark Matrix
               </h2>
               <p className="text-xs sm:text-sm text-slate-400">
-                Evaluating 5 architectural approaches on strictly unseen campaigns (Domain-Aware Split)
+                Audited Evaluation Across Strictly Unseen Zero-Day Campaigns (Campaign-Aware Partition)
               </p>
             </div>
           </div>
@@ -94,91 +64,120 @@ export default function ModelComparisonModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Evaluation Methodology Callout */}
-        <div className="my-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs sm:text-sm text-blue-200">
+        {/* Evaluation Metadata Card */}
+        <div className="my-5 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs sm:text-sm text-blue-200">
           <div className="flex items-start space-x-2.5">
             <Award className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <span className="font-bold text-blue-300 block mb-0.5">
-                Strict Zero-Day Evaluation Methodology (No Random Split Leakage)
+            <div className="space-y-1">
+              <span className="font-bold text-blue-300 block">
+                Zero-Day Partitioning Integrity: No Target Domain Leakage
               </span>
-              Unlike standard datasets where identical phishing templates are randomly split between train/test, our benchmark uses <strong>Campaign-Aware & Domain-Aware Isolation</strong>: All testing campaigns belong to previously unseen, unregistered domains to measure true generalization.
+              <p className="text-slate-300">
+                Models are evaluated against strictly unseen campaigns on newly registered, previously unencountered domains.
+                Metrics are dynamically served from <code className="text-cyan-300">/api/metrics</code> based on the verified benchmark.
+              </p>
+              {metricsData && (
+                <div className="flex flex-wrap gap-4 pt-2 text-xs font-mono text-slate-400 border-t border-blue-500/20 mt-2">
+                  <span>Evaluation Samples: <strong className="text-white">{metricsData.sample_count}</strong></span>
+                  <span>Unseen Phishing Attacks: <strong className="text-red-400">{metricsData.phishing_count}</strong></span>
+                  <span>Unseen Benign Domains: <strong className="text-emerald-400">{metricsData.benign_count}</strong></span>
+                  <span>Timestamp: <strong className="text-white">{metricsData.timestamp?.slice(0, 19).replace('T', ' ')} UTC</strong></span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 5-Model Comparison Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-800 mb-6">
-          <table className="w-full text-left text-xs sm:text-sm">
-            <thead className="bg-slate-900 text-slate-300 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-800">
-              <tr>
-                <th className="py-3 px-4">Architecture / Model</th>
-                <th className="py-3 px-3">Accuracy</th>
-                <th className="py-3 px-3">Precision</th>
-                <th className="py-3 px-3 text-cyan-400 font-bold">Zero-Day Recall</th>
-                <th className="py-3 px-3 text-cyan-400 font-bold">Zero-Day F1</th>
-                <th className="py-3 px-3">FPR</th>
-                <th className="py-3 px-3">FNR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/80">
-              {benchmarkModels.map((m, idx) => (
-                <tr
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center space-y-3">
+            <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
+            <span className="text-sm text-slate-400">Loading empirical benchmark metrics...</span>
+          </div>
+        ) : error ? (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            {error}
+          </div>
+        ) : (
+          <>
+            {/* 6-Model/Modality Comparison Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-800 mb-6">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-900 text-slate-300 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-800">
+                  <tr>
+                    <th className="py-3 px-4">Architecture / Modality</th>
+                    <th className="py-3 px-3">Accuracy</th>
+                    <th className="py-3 px-3">Precision</th>
+                    <th className="py-3 px-3 text-cyan-400 font-bold">Zero-Day Recall</th>
+                    <th className="py-3 px-3 text-cyan-400 font-bold">Zero-Day F1</th>
+                    <th className="py-3 px-3">PR-AUC</th>
+                    <th className="py-3 px-3">FPR</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {modelsList.map((m, idx) => (
+                    <tr
+                      key={idx}
+                      className={
+                        m.highlight
+                          ? 'bg-blue-600/15 border-l-4 border-l-cyan-400 font-medium'
+                          : 'hover:bg-slate-800/40 transition'
+                      }
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-white flex items-center space-x-1.5">
+                          <span>{m.name}</span>
+                          {m.highlight && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">
+                              Production
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400">{m.type}</div>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-300">{m.accuracy}</td>
+                      <td className="py-3 px-3 font-mono text-slate-300">{m.precision}</td>
+                      <td className="py-3 px-3 font-mono text-cyan-300 font-bold">{m.recall}</td>
+                      <td className="py-3 px-3 font-mono text-cyan-300 font-bold">{m.f1}</td>
+                      <td className="py-3 px-3 font-mono text-emerald-400">{m.prAuc}</td>
+                      <td className="py-3 px-3 font-mono text-slate-400">{m.fpr}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Architectural Zero-Day Analysis Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {modelsList.map((m, idx) => (
+                <div
                   key={idx}
-                  className={`transition ${
+                  className={`p-3.5 rounded-xl border ${
                     m.highlight
-                      ? 'bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/40 font-semibold border-l-4 border-l-blue-500'
-                      : 'hover:bg-slate-800/20'
+                      ? 'bg-blue-950/40 border-cyan-500/40 text-blue-200'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-300'
                   }`}
                 >
-                  <td className="py-3.5 px-4">
-                    <div className="text-slate-100 font-bold flex items-center space-x-1.5">
-                      <span>{m.name}</span>
-                      {m.highlight && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
-                          Recommended
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 opacity-90 mt-0.5">{m.type}</div>
-                    <div className="text-[11px] text-slate-400 mt-1 italic">{m.zeroDayNote}</div>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-200">{m.accuracy}</td>
-                  <td className="py-3.5 px-3 text-slate-200">{m.precision}</td>
-                  <td className="py-3.5 px-3 text-cyan-300 font-extrabold">{m.recall}</td>
-                  <td className="py-3.5 px-3 text-cyan-300 font-extrabold">{m.f1}</td>
-                  <td className="py-3.5 px-3 text-slate-400">{m.fpr}</td>
-                  <td className="py-3.5 px-3 text-slate-400">{m.fnr}</td>
-                </tr>
+                  <div className="font-semibold text-white mb-1 flex items-center justify-between">
+                    <span>{m.name}</span>
+                    <span className="font-mono text-cyan-400 text-xs">F1: {m.f1}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">{m.zeroDayNote}</p>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </>
+        )}
 
-        {/* Key Takeaways */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
-              <ShieldAlert className="w-4 h-4" />
-              <span>Why Traditional ML Fails Zero-Day (66.7% FNR)</span>
-            </h4>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Traditional ML models rely predominantly on domain age, blacklist reputation, and lexical patterns. When an attacker registers a brand-new domain with normal lexical length, traditional classifiers classify it as legitimate because it has no historical threat telemetry.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Why Multimodal VLM Succeeds (100% Zero-Day Recall)</span>
-            </h4>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              VLM analyzes visual rendered intent. If a page visually mimics Microsoft 365 or PayPal, but the underlying apex domain does not match official identity provider servers, the system detects brand impersonation immediately without relying on prior domain reputation.
-            </p>
-          </div>
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs sm:text-sm transition"
+          >
+            Close Matrix
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
