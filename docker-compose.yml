@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: aegis_vlm_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=False
+      - VLM_BACKEND=heuristic
+      - SSRF_PROTECTION_ENABLED=True
+      - ALLOW_LOCAL_TEST_PAGES=True
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./temp_screenshots:/app/temp_screenshots
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aegis_vlm_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+

