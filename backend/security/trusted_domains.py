@@ -149,3 +149,4 @@ def is_trusted_domain(url_or_host: str) -> bool:
         return True
 
     return False
+

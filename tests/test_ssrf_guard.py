@@ -48,3 +48,25 @@ def test_reject_local_test_pages_no_localhost_exemption():
     assert is_safe is False
     assert "localhost" in reason.lower() or "blocked" in reason.lower()
 
+
+def test_nat64_and_ipv4_mapped_validation():
+    """
+    NAT64 (RFC 6052 Well-Known Prefix 64:ff9b::/96) and IPv4-mapped addresses must allow
+    legitimate public internet IPs resolved over DNS64 while strictly blocking private,
+    loopback, or cloud metadata targets.
+    """
+    # Public IPv4 inside NAT64 (e.g. Akamai CDN 23.222.31.90) -> Safe / Allowed
+    assert is_private_or_restricted_ip("64:ff9b::17de:1f5a") is False
+    assert is_private_or_restricted_ip("::ffff:23.222.31.90") is False
+
+    # Loopback (127.0.0.1) inside NAT64 / IPv4-mapped -> Blocked
+    assert is_private_or_restricted_ip("64:ff9b::7f00:1") is True
+    assert is_private_or_restricted_ip("::ffff:127.0.0.1") is True
+
+    # Cloud metadata (169.254.169.254) inside NAT64 -> Blocked
+    assert is_private_or_restricted_ip("64:ff9b::a9fe:a9fe") is True
+
+    # Private network (10.0.0.1, 192.168.1.1) inside NAT64 -> Blocked
+    assert is_private_or_restricted_ip("64:ff9b::0a00:1") is True
+    assert is_private_or_restricted_ip("64:ff9b::c0a8:101") is True
+

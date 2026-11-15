@@ -236,3 +236,4 @@ def test_visual_perceptual_hash_and_synthetic_label():
     )
     assert res["is_synthetic_preview"] is True
     assert any("Synthetic Fallback Preview" in ind for ind in res["visual_indicators"])
+

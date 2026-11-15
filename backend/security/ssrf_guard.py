@@ -36,8 +36,11 @@ ADDITIONAL_RESTRICTED_NETWORKS = [
     ipaddress.ip_network("255.255.255.255/32"), # Limited broadcast
     ipaddress.ip_network("fc00::/7"),          # Unique Local IPv6
     ipaddress.ip_network("fe80::/10"),         # Link-Local Unicast IPv6
-    ipaddress.ip_network("::ffff:0:0/96"),     # IPv4-mapped IPv6
 ]
+
+# Prefixes embedding an IPv4 address inside IPv6 (RFC 6052 NAT64 WKP & RFC 4291 IPv4-mapped)
+NAT64_WELL_KNOWN_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+IPV4_MAPPED_IPV6_PREFIX = ipaddress.ip_network("::ffff:0:0/96")
 
 
 class SSRFValidationError(ValueError):
@@ -63,6 +66,15 @@ def is_private_or_restricted_ip(ip_str: str) -> bool:
         ip = ipaddress.ip_address(clean_ip)
     except ValueError:
         return False  # Not an IP address
+
+    # For NAT64 (RFC 6052) or IPv4-mapped (RFC 4291) IPv6 addresses, extract and validate
+    # the embedded IPv4 address. This avoids blocking legitimate public internet destinations
+    # on networks utilizing DNS64/NAT64 translation while strictly preventing SSRF to
+    # embedded private, loopback, or metadata targets.
+    if ip.version == 6:
+        if ip in NAT64_WELL_KNOWN_PREFIX or ip in IPV4_MAPPED_IPV6_PREFIX:
+            embedded_v4 = ipaddress.IPv4Address(ip.packed[-4:])
+            return is_private_or_restricted_ip(str(embedded_v4))
 
     # Standard RFC1918 / loopback / link-local checks
     if (

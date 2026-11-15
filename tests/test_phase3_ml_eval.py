@@ -144,3 +144,4 @@ def test_test_page_expected_risks_calibrated():
             assert "~0.04" in page["expected"] or "SAFE" in page["expected"]
         elif page["category"] == "PHISHING":
             assert "~0.88" in page["expected"] or "PHISHING" in page["expected"]
+
