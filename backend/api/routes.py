@@ -5,6 +5,7 @@ scan history CRUD, and dashboard analytics with rate limiting and strict path tr
 Dispatches heavy inspection workloads to threadpools to prevent event-loop blocking.
 """
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -229,16 +230,25 @@ def serve_test_page(filename: str):
     raw_path = TEST_PAGES_DIR / filename
 
     # Reject symlinks immediately before path resolution
-    if raw_path.is_symlink():
+    if raw_path.is_symlink() or os.path.islink(raw_path):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Symlinked test files are prohibited."
         )
 
-    resolved_path = raw_path.resolve()
+    resolved_path = raw_path.resolve(strict=False)
 
     # Verify containment within TEST_PAGES_DIR
-    if not resolved_path.is_relative_to(TEST_PAGES_DIR) or not resolved_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File containment check failed.")
+    if not resolved_path.is_relative_to(TEST_PAGES_DIR):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File containment check failed."
+        )
+
+    if not resolved_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File containment check failed."
+        )
 
     return FileResponse(resolved_path, media_type="text/html")

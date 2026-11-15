@@ -128,13 +128,18 @@ def extract_html_features(html_content: str, base_url: str = "") -> Dict[str, An
         has_login_form = True
 
     # Regex fallback for malformed or unclosed tags
-    if not has_password_field and re.search(r'<input[^>]*type=[\'"]?password', html_content, re.IGNORECASE):
-        has_password_field = True
-        has_login_form = True
+    if not has_password_field:
+        password_match = re.search(
+            r'(?is)<\s*input\b[^>]*\btype\s*=\s*(?:["\']?)\s*password\b',
+            html_content
+        )
+        if password_match:
+            has_password_field = True
+            has_login_form = True
 
     # Regex fallback for forms in malformed HTML (e.g. unclosed raw-text <title> swallowing body in html.parser)
     if num_forms == 0:
-        raw_form_matches = list(re.finditer(r'<form\b([^>]*)>', html_content, re.IGNORECASE))
+        raw_form_matches = list(re.finditer(r'(?is)<\s*form\b([^>]*)>', html_content))
         if raw_form_matches:
             num_forms = len(raw_form_matches)
             for fm in raw_form_matches:
