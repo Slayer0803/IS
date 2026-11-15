@@ -1,23 +1,29 @@
 """
 Multimodal Feature Fusion & Explainability Engine.
-Integrates URL, Visual (VLM), Semantic/Text, and HTML structural risks into a unified risk score.
-Synthesizes transparent, human-readable explanations categorizing detection evidence.
+Integrates URL, Visual, Semantic/Text, and HTML structural risks into a calibrated threat score.
+Replaces arbitrary overrides with a transparent, additive scoring cascade with logged rules,
+calibrated signal agreement, and comprehensive explainability.
 """
+import logging
 from typing import Any, Dict, List, Tuple
+
 from backend.config import (
-    WEIGHT_URL,
-    WEIGHT_VISUAL,
-    WEIGHT_TEXT,
-    WEIGHT_HTML,
     THRESHOLD_SAFE,
     THRESHOLD_SUSPICIOUS,
+    WEIGHT_HTML,
+    WEIGHT_TEXT,
+    WEIGHT_URL,
+    WEIGHT_VISUAL,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MultimodalFusionEngine:
     """
     Fuses predictions and signals from URL, Visual/VLM, NLP Text, and HTML analyzers.
-    Computes a weighted risk score, final classification, confidence, and explainability breakdown.
+    Computes a weighted linear baseline, evaluates bounded threat correlation rules,
+    calibrates signal agreement across modalities, and compiles explainable evidence.
     """
 
     def __init__(
@@ -31,6 +37,8 @@ class MultimodalFusionEngine:
     ):
         # Normalize weights so they sum to 1.0
         total_w = w_url + w_visual + w_text + w_html
+        if total_w <= 0:
+            total_w = 1.0
         self.w_url = w_url / total_w
         self.w_visual = w_visual / total_w
         self.w_text = w_text / total_w
@@ -48,14 +56,15 @@ class MultimodalFusionEngine:
         unreachable_reason: str = ""
     ) -> Dict[str, Any]:
         """
-        Executes feature fusion and returns unified prediction and explainability report.
+        Executes feature fusion and returns unified prediction, explainability report,
+        and full rule firing audit log.
         """
         url_risk = float(url_analysis.get("url_risk", 0.0))
         visual_risk = float(visual_analysis.get("visual_risk", 0.0))
         text_risk = float(text_analysis.get("text_risk", 0.0))
         html_risk = float(html_analysis.get("html_risk", 0.0))
 
-        # Initial weighted linear combination
+        # 1. Foundational Weighted Linear Combination
         linear_risk = (
             self.w_url * url_risk
             + self.w_visual * visual_risk
@@ -63,236 +72,214 @@ class MultimodalFusionEngine:
             + self.w_html * html_risk
         )
 
-        # Zero-Day Threat Correlation Rules:
+        fired_rules: List[Dict[str, Any]] = []
+        accumulated_risk = linear_risk
+
+        # Extract features for rule evaluation
+        hf = html_analysis.get("features", {})
+        has_password_field = bool(hf.get("has_password_field", False))
+        has_login_form = bool(hf.get("has_login_form", False))
+        has_any_input = hf.get("num_input_fields", 0) > 0
+        cross_domain_forms = hf.get("cross_domain_forms", [])
+        cross_domain_post = len(cross_domain_forms) > 0
+
         is_brand_impersonation = visual_analysis.get("brand_impersonation", False)
-        has_any_input = html_analysis.get("features", {}).get("num_input_fields", 0) > 0
-        has_password_field = bool(html_analysis.get("features", {}).get("has_password_field", False))
+        impersonated_brand = visual_analysis.get("impersonated_brand")
         is_credential_harvesting = (
             visual_analysis.get("credential_harvesting", False)
             or has_password_field
             or (text_analysis.get("credential_request", False) and has_any_input)
         )
-        cross_domain_post = len(html_analysis.get("features", {}).get("cross_domain_forms", [])) > 0
+
         has_social_eng = text_analysis.get("social_engineering", False)
         has_urgency = text_analysis.get("urgency", False)
-        brand_in_sub = bool(url_analysis.get("features", {}).get("brand_in_subdomain", []))
-        is_free_hosting_abuse = bool(url_analysis.get("features", {}).get("is_free_hosting_abuse", False))
-        suspicious_kw_count = url_analysis.get("features", {}).get("suspicious_keywords_count", 0)
 
-        # Gather explainability indicators
-        url_indicators = list(url_analysis.get("indicators", []))
-        visual_indicators = list(visual_analysis.get("visual_indicators", []))
-        text_indicators = list(text_analysis.get("indicators", []))
-        html_indicators = list(html_analysis.get("indicators", []))
+        uf = url_analysis.get("features", {})
+        brand_in_sub = bool(uf.get("brand_in_subdomain", []))
+        is_user_content = bool(uf.get("is_user_content_host", False))
+        is_trusted_dom = bool(uf.get("is_trusted_domain", False))
 
-        # UNREACHABLE / OFFLINE SITES HANDLING:
+        # 2. Unreachable / Offline Targets Handling:
+        # Notice: is_unreachable is ONLY set when a real transport/network/DNS failure occurs.
         if is_unreachable:
             if brand_in_sub:
-                final_risk = 0.80
+                final_risk = 0.85
                 classification = "PHISHING"
-                confidence = 0.65
+                signal_agreement = 0.70
                 summary_points = [
-                    "⚠️ WARNING: Target host is offline or unreachable (DNS resolution failed or connection dropped).",
-                    f"High-risk brand impersonation detected in URL targeting '{url_analysis.get('features', {}).get('brand_in_subdomain', ['brand'])[0]}' on unauthorized infrastructure.",
+                    "⚠️ WARNING: Target host is currently offline or unreachable (DNS failure or connection refused).",
+                    f"High-risk brand impersonation identified in URL targeting '{uf.get('brand_in_subdomain', ['brand'])[0]}' on external infrastructure.",
                     "Ephemeral zero-day phishing campaigns are frequently taken down within hours of deployment.",
-                    "Do NOT visit or trust this domain if it comes back online."
+                    "Do NOT trust this domain if it returns online."
                 ]
             elif url_risk >= 0.35:
                 final_risk = max(0.55, round(url_risk, 2))
                 classification = "SUSPICIOUS"
-                confidence = 0.45
+                signal_agreement = 0.45
                 summary_points = [
-                    "⚠️ WARNING: Target host is offline or unreachable (DNS resolution failed or host connection refused).",
+                    "⚠️ WARNING: Target host is offline or unreachable.",
                     f"The URL exhibits suspicious lexical anomalies and high-risk domain structure ({int(url_risk * 100)}% URL risk).",
-                    "Zero-day phishing infrastructure often uses rapid DNS cloaking or is abandoned after campaigns.",
                     "Automated inspection cannot certify an unreachable host as safe."
                 ]
             else:
                 final_risk = 0.35
                 classification = "SUSPICIOUS"
-                confidence = 0.25
-                diag_msg = unreachable_reason[:80] if unreachable_reason else "Host resolution failed / Connection timeout"
+                signal_agreement = 0.30
+                diag_msg = unreachable_reason[:80] if unreachable_reason else "Host resolution failed / Network timeout"
                 summary_points = [
                     "⚠️ WARNING: Target host is offline, unreachable, or does not exist.",
                     f"Network diagnostic: {diag_msg}.",
-                    "Live visual layout and DOM forms could not be retrieved to certify safety.",
-                    "Confidence is low (25%) due to absent live server responses. The domain cannot be verified as safe."
+                    "Live visual layout and DOM forms could not be retrieved. Safety cannot be certified."
                 ]
 
             return {
                 "classification": classification,
                 "risk_score": final_risk,
-                "confidence": confidence,
-                "weights_used": {
-                    "url": round(self.w_url, 3),
-                    "visual": round(self.w_visual, 3),
-                    "text": round(self.w_text, 3),
-                    "html": round(self.w_html, 3),
-                },
+                "confidence": signal_agreement,
+                "signal_agreement": signal_agreement,
                 "sub_scores": {
-                    "url_score": url_risk,
-                    "visual_score": visual_risk,
-                    "text_score": text_risk,
-                    "html_score": html_risk,
+                    "url_score": round(url_risk, 3),
+                    "visual_score": round(visual_risk, 3),
+                    "text_score": round(text_risk, 3),
+                    "html_score": round(html_risk, 3),
                 },
+                "fired_rules": [{"rule": "UNREACHABLE_HOST", "reason": unreachable_reason}],
                 "categorized_indicators": {
-                    "url_indicators": url_indicators,
-                    "visual_indicators": visual_indicators,
-                    "text_indicators": text_indicators,
-                    "technical_indicators": html_indicators,
+                    "critical": summary_points[:2],
+                    "suspicious": summary_points[2:],
+                    "benign": []
                 },
-                "explanation_summary": summary_points,
+                "explanation_summary": summary_points
             }
 
-        final_risk = linear_risk
+        # 3. Additive Threat Correlation Cascade (Documented Rules)
+        # Rule 1: Zero-Day Brand Impersonation with Credential Harvesting
+        if is_brand_impersonation and (has_password_field or is_credential_harvesting):
+            boost = 0.45
+            prev = accumulated_risk
+            accumulated_risk = max(0.88, accumulated_risk + boost)
+            fired_rules.append({
+                "rule": "RULE_1_BRAND_IMPERSONATION_CREDENTIAL_HARVEST",
+                "rationale": f"Deceptive mimicry of {impersonated_brand or 'brand'} combined with credential capture on unauthorized infrastructure.",
+                "boost": boost,
+                "floor": 0.88,
+                "score_before": round(prev, 3),
+                "score_after": round(accumulated_risk, 3)
+            })
 
-        # 1. Visual Brand Impersonation on unverified domain (Near-certain phishing)
-        if is_brand_impersonation:
-            final_risk = max(final_risk, 0.88 if is_credential_harvesting else 0.80)
+        # Rule 2: Cross-Domain Credential Exfiltration
+        if cross_domain_post and (has_password_field or has_any_input):
+            boost = 0.30
+            prev = accumulated_risk
+            accumulated_risk = max(0.78, accumulated_risk + boost)
+            fired_rules.append({
+                "rule": "RULE_2_CROSS_DOMAIN_FORM_POST",
+                "rationale": "Form submission target points to an external third-party domain (credential exfiltration pattern).",
+                "boost": boost,
+                "floor": 0.78,
+                "score_before": round(prev, 3),
+                "score_after": round(accumulated_risk, 3)
+            })
 
-        # 1b. Brand spoofing in URL subdomain or PaaS cloud prefix
-        if brand_in_sub:
-            final_risk = max(final_risk, 0.85 if is_credential_harvesting else 0.78)
+        # Rule 3: User-Content / PaaS Credential Collection
+        if is_user_content and (has_password_field or (has_login_form and has_social_eng)):
+            boost = 0.28
+            prev = accumulated_risk
+            accumulated_risk = max(0.75, accumulated_risk + boost)
+            fired_rules.append({
+                "rule": "RULE_3_USER_CONTENT_CREDENTIAL_CAPTURE",
+                "rationale": "Authentication inputs rendered on multi-tenant user content platform (sites.google, github.io, pages.dev).",
+                "boost": boost,
+                "floor": 0.75,
+                "score_before": round(prev, 3),
+                "score_after": round(accumulated_risk, 3)
+            })
 
-        # 2. Form posts credentials to completely different third-party domain
-        if cross_domain_post:
-            final_risk = max(final_risk, 0.82)
+        # Rule 4: Scareware / Urgency Pressure Manipulation
+        if (has_social_eng or has_urgency) and visual_risk >= 0.75:
+            boost = 0.25
+            prev = accumulated_risk
+            accumulated_risk = max(0.75, accumulated_risk + boost)
+            fired_rules.append({
+                "rule": "RULE_4_SCAREWARE_URGENCY_MANIPULATION",
+                "rationale": "Social engineering pressure tactics combined with high visual deception layout.",
+                "boost": boost,
+                "floor": 0.75,
+                "score_before": round(prev, 3),
+                "score_after": round(accumulated_risk, 3)
+            })
 
-        # 3. High Visual Risk (Scareware / Tech Support / Crypto Drainer / Package Delivery / Zero-Day form)
-        if visual_risk >= 0.70:
-            final_risk = max(final_risk, visual_risk)
+        # Rule 5: Bounded High-Trust Discount (Never absolute clamp, only bounded reduction)
+        if is_trusted_dom and not is_brand_impersonation and not has_password_field and not cross_domain_post:
+            discount = 0.35
+            prev = accumulated_risk
+            accumulated_risk = max(0.04, min(0.20, accumulated_risk - discount))
+            fired_rules.append({
+                "rule": "RULE_5_HIGH_TRUST_BOUNDED_DISCOUNT",
+                "rationale": "Authentic enterprise domain verified without deceptive credential harvesting mechanisms.",
+                "discount": discount,
+                "ceiling": 0.20,
+                "score_before": round(prev, 3),
+                "score_after": round(accumulated_risk, 3)
+            })
 
-        # 4. Critical Text Risk (Crypto wallet drainer, tech support scam, delivery fee, prize scam)
-        if text_risk >= 0.65:
-            final_risk = max(final_risk, 0.78)
+        final_risk = min(1.0, max(0.0, round(accumulated_risk, 3)))
 
-        # 4b. Credential harvesting with social engineering or deceptive context
-        if is_credential_harvesting and (has_social_eng or "phishing" in url_analysis.get("features", {}).get("url", "").lower()):
-            final_risk = max(final_risk, 0.85)
-
-        # 4c. Active Credential Harvesting on PaaS or Unverified Cloud
-        if is_credential_harvesting and (is_free_hosting_abuse or url_risk >= 0.20):
-            final_risk = max(final_risk, 0.80)
-
-        # 5. Multi-modal Red Flag Convergence (Suspicious URL + Credential ask or PaaS abuse)
-        if url_risk >= 0.35 and is_credential_harvesting:
-            final_risk = max(final_risk, 0.78)
-        elif is_free_hosting_abuse and (suspicious_kw_count > 0 or is_credential_harvesting):
-            final_risk = max(final_risk, 0.75)
-        elif url_risk >= 0.50 and (has_urgency and has_social_eng):
-            final_risk = max(final_risk, 0.72)
-        elif url_risk >= 0.40 and (has_urgency or has_social_eng):
-            final_risk = max(final_risk, 0.58)
-
-        # 6. Dangerous URL with high lexical/structural manipulation or IP host
-        if url_risk >= 0.60:
-            final_risk = max(final_risk, 0.70)
-        elif url_risk >= 0.40 and (visual_risk == 0.0 and text_risk == 0.0):
-            # Target website is offline, cloaking, or blocking crawler, but URL itself has severe anomalies
-            final_risk = max(final_risk, min(0.68, url_risk * 1.35))
-
-        # High-Trust Whitelist Domains (Legitimate encyclopedias, government, and documentation portals)
-        hostname = str(url_analysis.get("features", {}).get("hostname", "")).lower()
-        is_high_trust = any(
-            hostname == d or hostname.endswith("." + d)
-            for d in [
-                "wikipedia.org", "wikimedia.org", "github.com", "gitlab.com",
-                "google.com", "apple.com", "microsoft.com", "mozilla.org", "w3.org",
-                "ietf.org", "nih.gov", "cdc.gov", "nasa.gov", "arxiv.org",
-                "nytimes.com", "bbc.com", "cnn.com", "reuters.com", "bloomberg.com"
-            ]
-        ) or any(hostname.endswith(t) for t in [".edu", ".gov", ".mil"])
-
-        if is_high_trust and not cross_domain_post and not has_password_field:
-            final_risk = 0.0
+        # 4. Calibrated Classification Thresholds
+        if final_risk >= self.threshold_suspicious:
+            classification = "PHISHING"
+        elif final_risk >= self.threshold_safe:
+            classification = "SUSPICIOUS"
+        else:
             classification = "SAFE"
-            confidence = 0.98
-        else:
-            final_risk = min(1.0, max(0.0, round(final_risk, 3)))
-            # Determine Classification
-            if final_risk <= self.threshold_safe:
-                classification = "SAFE"
-            elif final_risk <= self.threshold_suspicious:
-                classification = "SUSPICIOUS"
-            else:
-                classification = "PHISHING"
 
-        # Calculate Confidence Score based on cross-modal consensus
-        risks = [url_risk, visual_risk, text_risk, html_risk]
-        # Standard deviation / agreement across modalities
-        avg_risk = sum(risks) / len(risks)
-        variance = sum((r - avg_risk) ** 2 for r in risks) / len(risks)
-        
-        # When risks are either consistently high (clear phish) or consistently low (clear safe),
-        # confidence is highest.
-        if final_risk >= 0.80 or final_risk <= 0.15:
-            confidence = round(min(0.98, 0.85 + (1.0 - min(1.0, variance * 2)) * 0.12), 2)
-        elif final_risk >= 0.65:
-            confidence = round(0.88 - variance * 0.15, 2)
-        else:
-            confidence = round(0.75 + (0.5 - abs(final_risk - 0.5)) * 0.20, 2)
+        # 5. Modality Spread Calibration (Signal Agreement)
+        sub_scores = [url_risk, visual_risk, text_risk, html_risk]
+        divergence = max(sub_scores) - min(sub_scores)
 
-        # Gather explainability indicators
-        url_indicators = url_analysis.get("indicators", [])
-        visual_indicators = visual_analysis.get("visual_indicators", [])
-        text_indicators = text_analysis.get("indicators", [])
-        html_indicators = html_analysis.get("indicators", [])
+        # Baseline signal agreement derived from consistency across modalities
+        signal_agreement = max(0.25, min(0.98, round(1.0 - (divergence * 0.40), 2)))
 
-        # Human-Readable Explanation Summary
+        # If decisive critical threat rules fired, agreement in the threat is high
+        if any(r["rule"] in ("RULE_1_BRAND_IMPERSONATION_CREDENTIAL_HARVEST", "RULE_2_CROSS_DOMAIN_FORM_POST") for r in fired_rules):
+            signal_agreement = max(signal_agreement, 0.94)
+
+        # 6. Synthesize Transparent Explanation
         summary_points: List[str] = []
-        if classification == "PHISHING":
-            if is_brand_impersonation:
-                impersonated = visual_analysis.get("impersonated_brand") or "a known brand"
-                summary_points.append(
-                    f"Visual analysis identified brand impersonation of {impersonated} on an unauthorized zero-day domain."
-                )
-            if is_credential_harvesting:
-                summary_points.append("The page actively requests and harvests account credentials or passwords.")
-            if cross_domain_post:
-                summary_points.append("Form submissions are routed to an external third-party domain.")
-            if text_analysis.get("social_engineering"):
-                summary_points.append("Social engineering deception cues or psychological manipulation triggers detected.")
-            if text_analysis.get("urgency"):
-                summary_points.append("Psychological urgency or account suspension threats were detected.")
-            if not summary_points:
-                summary_points.append(
-                    "Multiple high-risk anomalies across URL structure, DOM elements, and visual cues indicate a deceptive page."
-                )
-        elif classification == "SUSPICIOUS":
-            summary_points.append(
-                "The page exhibits anomalies such as unverified credentials handling or suspicious structural patterns, but does not conclusively prove brand spoofing."
-            )
-            if text_analysis.get("urgency"):
-                summary_points.append("Urgent language was observed.")
-            if url_risk > 0.4:
-                summary_points.append("The URL structure contains non-standard lexical features.")
-        else:
-            summary_points.append(
-                "No deceptive brand impersonation, credential harvesting forms, or suspicious URL characteristics were found. The site appears legitimate."
-            )
+        if fired_rules:
+            for fr in fired_rules:
+                summary_points.append(f"Threat Rule Fired: {fr['rationale']}")
+
+        for ind in visual_analysis.get("visual_indicators", [])[:2]:
+            summary_points.append(ind)
+        for ind in url_analysis.get("indicators", [])[:2]:
+            summary_points.append(ind)
+        for ind in html_analysis.get("indicators", [])[:2]:
+            summary_points.append(ind)
+        for ind in text_analysis.get("indicators", [])[:2]:
+            summary_points.append(ind)
+
+        if not summary_points:
+            summary_points = ["Multimodal signals verified within safe operational baselines."]
+
+        categorized_indicators = {
+            "critical": [p for p in summary_points if any(w in p.lower() for w in ["impersonation", "harvest", "scareware", "cross-domain"])],
+            "suspicious": [p for p in summary_points if any(w in p.lower() for w in ["keyword", "entropy", "subdomain", "urgency", "modal"])],
+            "benign": [p for p in summary_points if any(w in p.lower() for w in ["authentic", "verified", "safe", "geometry"])]
+        }
 
         return {
             "classification": classification,
             "risk_score": final_risk,
-            "confidence": confidence,
-            "weights_used": {
-                "url": round(self.w_url, 3),
-                "visual": round(self.w_visual, 3),
-                "text": round(self.w_text, 3),
-                "html": round(self.w_html, 3),
-            },
+            "confidence": signal_agreement,
+            "signal_agreement": signal_agreement,
             "sub_scores": {
-                "url_score": url_risk,
-                "visual_score": visual_risk,
-                "text_score": text_risk,
-                "html_score": html_risk,
+                "url_score": round(url_risk, 3),
+                "visual_score": round(visual_risk, 3),
+                "text_score": round(text_risk, 3),
+                "html_score": round(html_risk, 3),
             },
-            "categorized_indicators": {
-                "url_indicators": url_indicators,
-                "visual_indicators": visual_indicators,
-                "text_indicators": text_indicators,
-                "technical_indicators": html_indicators,
-            },
-            "explanation_summary": summary_points,
+            "fired_rules": fired_rules,
+            "categorized_indicators": categorized_indicators,
+            "explanation_summary": summary_points
         }
-

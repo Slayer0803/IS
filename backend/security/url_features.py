@@ -3,12 +3,19 @@ URL Lexical, Structural, and Threat Heuristic Feature Extractor.
 Extracts rich security features from target URLs to detect zero-day phishing patterns,
 including brand impersonation in subdomains, free-tier hosting abuse (pages.dev, vercel.app, etc.),
 deceptive homographs, high entropy, and ephemeral scam TLDs.
+Uses tldextract for accurate registrable domain and user-content isolation.
 """
 import math
 import re
 from typing import Any, Dict, List
 from urllib.parse import parse_qs, unquote, urlparse
 
+from backend.security.trusted_domains import (
+    get_registrable_domain,
+    is_trusted_domain,
+    is_user_content_host,
+    parse_domain_parts,
+)
 
 # Suspicious TLDs commonly leveraged in cheap, ephemeral zero-day phishing campaigns
 SUSPICIOUS_TLDS = {
@@ -16,15 +23,6 @@ SUSPICIOUS_TLDS = {
     "surf", "monster", "icu", "cam", "bid", "stream", "live", "link", "club", "online",
     "support", "secure", "vip", "account", "login", "auth", "cfd", "sbs", "cyou",
     "beauty", "hair", "quest", "bond", "boats", "yachts", "skin", "ru", "cn", "cc", "ws"
-}
-
-# Free/PaaS hosting providers heavily abused by attackers to host zero-day phishing pages
-FREE_HOSTING_DOMAINS = {
-    "pages.dev", "workers.dev", "web.app", "firebaseapp.com", "firebaseio.com",
-    "vercel.app", "netlify.app", "appspot.com", "github.io", "gitlab.io", "webflow.io",
-    "glitch.me", "repl.co", "render.com", "surge.sh", "ngrok-free.app", "ngrok.io",
-    "loca.lt", "trycloudflare.com", "duckdns.org", "no-ip.com", "000webhostapp.com",
-    "weebly.com", "wixsite.com", "blogspot.com", "azurewebsites.net"
 }
 
 # Suspicious keywords frequently embedded into phishing URLs/paths
@@ -86,14 +84,13 @@ def extract_url_features(url: str, redirect_count: int = 0) -> Dict[str, Any]:
     url_length = len(url)
     domain_length = len(hostname)
 
-    # Domain breakdown
-    domain_parts = hostname.split(".")
-    tld = domain_parts[-1].lower() if domain_parts else ""
-    is_suspicious_tld = tld in SUSPICIOUS_TLDS
+    # Domain breakdown via tldextract
+    subdomain, domain_name, tld, reg_domain = parse_domain_parts(url)
+    is_suspicious_tld = tld.split(".")[-1] in SUSPICIOUS_TLDS if tld else False
 
     num_dots = url.count(".")
     num_hyphens = url.count("-")
-    num_subdomains = max(0, len(domain_parts) - 2) if len(domain_parts) > 1 else 0
+    num_subdomains = len(subdomain.split(".")) if subdomain else 0
 
     # Special characters check
     special_chars = set("!$&'()*+,;=~_%[]:@")
@@ -114,29 +111,25 @@ def extract_url_features(url: str, redirect_count: int = 0) -> Dict[str, Any]:
     query_params = parse_qs(query)
     query_param_count = len(query_params)
 
-    # Apex domain & subdomains definition
-    apex_domain = ".".join(domain_parts[-2:]) if len(domain_parts) >= 2 else hostname
-    subdomain_part = ".".join(domain_parts[:-2]) if len(domain_parts) > 2 else ""
-
     # Suspicious keywords in URL (exclude legitimate apex domain name)
     url_lower = url.lower()
     found_keywords = [
         kw for kw in SUSPICIOUS_KEYWORDS
-        if kw in url_lower and kw not in apex_domain
+        if kw in url_lower and kw not in reg_domain
     ]
     suspicious_keywords_count = len(found_keywords)
 
-    # Free PaaS Hosting abuse check (e.g. brand-security.pages.dev)
-    is_free_hosting_abuse = any(hostname.endswith("." + fhd) or hostname == fhd for fhd in FREE_HOSTING_DOMAINS)
+    # User Content / PaaS hosting check
+    user_content_abuse = is_user_content_host(hostname)
+    trusted = is_trusted_domain(hostname)
 
     # Brand spoofing in subdomain/path
     brand_in_subdomain = []
-
     for brand in sorted(COMMON_BRAND_TOKENS, key=len, reverse=True):
         brand_pat = re.compile(rf"(^|[-._]){re.escape(brand)}($|[-._])", re.IGNORECASE)
-        # Check if brand appears in subdomain or free-hosting prefix while apex domain is not the official brand
-        target_str = hostname if is_free_hosting_abuse else subdomain_part
-        if brand_pat.search(target_str) and not brand_pat.search(apex_domain):
+        # If brand appears in subdomain or user-content prefix while registered domain is not the official brand
+        target_check = hostname if user_content_abuse else subdomain
+        if brand_pat.search(target_check) and not brand_pat.search(reg_domain):
             brand_in_subdomain.append(brand)
 
     # Shannon Entropy of domain and full URL
@@ -164,14 +157,14 @@ def extract_url_features(url: str, redirect_count: int = 0) -> Dict[str, Any]:
         indicators.append("Presence of '@' character in URL (credentials masking technique)")
 
     if brand_in_subdomain:
-        risk_points += 0.50
+        risk_points += 0.55
         indicators.append(
-            f"Brand impersonation in subdomain/host: '{brand_in_subdomain[0]}' hosted on external infrastructure '{apex_domain}'"
+            f"Brand impersonation in subdomain/host: '{brand_in_subdomain[0]}' hosted on external/unauthorized infrastructure '{reg_domain}'"
         )
 
-    if is_free_hosting_abuse and (suspicious_keywords_count > 0 or brand_in_subdomain):
-        risk_points += 0.35
-        indicators.append("Abuse of free/PaaS cloud hosting (pages.dev/vercel/firebase) with security keywords")
+    if user_content_abuse and (suspicious_keywords_count > 0 or brand_in_subdomain):
+        risk_points += 0.40
+        indicators.append(f"Abuse of multi-tenant user content platform ({hostname}) with security/credential keywords")
 
     if num_subdomains >= 3:
         risk_points += 0.20
@@ -208,13 +201,20 @@ def extract_url_features(url: str, redirect_count: int = 0) -> Dict[str, Any]:
         risk_points += 0.25
         indicators.append(f"Multiple HTTP redirects ({redirect_count}) detected")
 
+    # Bounded trust reduction for legitimate enterprise apex domains:
+    # NEVER clamp to 0.05 or force safe; apply bounded reduction only to URL risk
+    if trusted and not brand_in_subdomain:
+        risk_points = max(0.02, risk_points - 0.35)
+        indicators.append(f"Verified high-reputation enterprise domain ({reg_domain})")
+
     # Normalize URL risk score between 0.0 and 1.0
     url_risk = min(1.0, round(risk_points, 3))
 
     features: Dict[str, Any] = {
         "url": url,
         "hostname": hostname,
-        "apex_domain": apex_domain,
+        "apex_domain": reg_domain,
+        "registrable_domain": reg_domain,
         "url_length": url_length,
         "domain_length": domain_length,
         "num_subdomains": num_subdomains,
@@ -225,7 +225,8 @@ def extract_url_features(url: str, redirect_count: int = 0) -> Dict[str, Any]:
         "uses_https": uses_https,
         "tld": tld,
         "is_suspicious_tld": is_suspicious_tld,
-        "is_free_hosting_abuse": is_free_hosting_abuse,
+        "is_user_content_host": user_content_abuse,
+        "is_trusted_domain": trusted,
         "has_at_symbol": has_at_symbol,
         "has_url_encoding": has_url_encoding,
         "redirect_count": redirect_count,
