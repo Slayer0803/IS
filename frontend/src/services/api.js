@@ -66,14 +66,6 @@ export async function fetchTestPages() {
   return response.json();
 }
 
-export async function fetchBenchmarkMetrics() {
-  const response = await fetch(`${API_BASE}/metrics`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch benchmark metrics');
-  }
-  return response.json();
-}
-
 export async function checkHealth() {
   const response = await fetch('/health');
   if (!response.ok) {
