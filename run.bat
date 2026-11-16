@@ -66,14 +66,14 @@ echo ----------------------------------------------------------------------
 
 :: 5. Launch FastAPI Backend in a separate window
 echo [*] Launching FastAPI Backend on http://localhost:8000 ...
-start "VLM Backend (FastAPI on Port 8000)" cmd /k "cd /d ""%~dp0"" && call .venv\Scripts\activate.bat && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+start "VLM Backend (FastAPI on Port 8000)" cmd /k "call .venv\Scripts\activate.bat && python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: Wait a brief moment to allow backend port binding
 timeout /t 2 /nobreak >nul
 
 :: 6. Launch Vite Frontend in a separate window
 echo [*] Launching React/Vite Frontend on http://localhost:5173 ...
-start "VLM Frontend (Vite on Port 5173)" cmd /k "cd /d ""%~dp0frontend"" && npm run dev"
+start "VLM Frontend (Vite on Port 5173)" cmd /k "cd frontend && npm run dev"
 
 :: Wait a brief moment for dev server initialization
 timeout /t 3 /nobreak >nul
