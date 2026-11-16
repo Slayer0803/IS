@@ -157,22 +157,23 @@ class PhishingDetectionPipeline:
             unreachable_reason=unreachable_reason
         )
 
+        hf = html_analysis.get("features", {})
         analysis_dict = {
             "url": url_analysis,
             "visual": visual_analysis,
             "text": text_analysis,
             "html": {
-                "html_risk": html_analysis["html_risk"],
-                "indicators": html_analysis["indicators"],
-                "title": html_analysis["features"]["title"],
-                "headings": html_analysis["features"]["headings"],
-                "has_login_form": html_analysis["features"]["has_login_form"],
-                "has_password_field": html_analysis["features"]["has_password_field"],
-                "num_forms": html_analysis["features"]["num_forms"],
-                "num_links": html_analysis["features"]["num_links"],
-                "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
-                "external_link_ratio": html_analysis["features"]["external_link_ratio"],
-                "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
+                "html_risk": html_analysis.get("html_risk", 0.0),
+                "indicators": html_analysis.get("indicators", []),
+                "title": hf.get("title", ""),
+                "headings": hf.get("headings", []),
+                "has_login_form": hf.get("has_login_form", False),
+                "has_password_field": hf.get("has_password_field", False),
+                "num_forms": hf.get("num_forms", 0),
+                "num_links": hf.get("num_links", 0),
+                "empty_link_ratio": hf.get("empty_link_ratio", 0.0),
+                "external_link_ratio": hf.get("external_link_ratio", 0.0),
+                "cross_domain_forms": hf.get("cross_domain_forms", []),
             }
         }
         if ml_analysis:
@@ -286,22 +287,23 @@ class PhishingDetectionPipeline:
         pil_image.save(buffered, format="PNG")
         screenshot_preview = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode('utf-8')}"
 
+        hf = html_analysis.get("features", {})
         analysis_dict = {
             "url": url_analysis,
             "visual": visual_analysis,
             "text": text_analysis,
             "html": {
-                "html_risk": html_analysis["html_risk"],
-                "indicators": html_analysis["indicators"],
-                "title": html_analysis["features"]["title"],
-                "headings": html_analysis["features"]["headings"],
-                "has_login_form": html_analysis["features"]["has_login_form"],
-                "has_password_field": html_analysis["features"]["has_password_field"],
-                "num_forms": html_analysis["features"]["num_forms"],
-                "num_links": html_analysis["features"]["num_links"],
-                "empty_link_ratio": html_analysis["features"]["empty_link_ratio"],
-                "external_link_ratio": html_analysis["features"]["external_link_ratio"],
-                "cross_domain_forms": html_analysis["features"]["cross_domain_forms"],
+                "html_risk": html_analysis.get("html_risk", 0.0),
+                "indicators": html_analysis.get("indicators", []),
+                "title": hf.get("title", ""),
+                "headings": hf.get("headings", []),
+                "has_login_form": hf.get("has_login_form", False),
+                "has_password_field": hf.get("has_password_field", False),
+                "num_forms": hf.get("num_forms", 0),
+                "num_links": hf.get("num_links", 0),
+                "empty_link_ratio": hf.get("empty_link_ratio", 0.0),
+                "external_link_ratio": hf.get("external_link_ratio", 0.0),
+                "cross_domain_forms": hf.get("cross_domain_forms", []),
             }
         }
         if ml_analysis:

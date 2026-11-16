@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
@@ -530,7 +531,6 @@ def capture_webpage(url: str, timeout_seconds: int = PAGE_FETCH_TIMEOUT_SECONDS)
             image = generate_fallback_screenshot(url, title, text, has_login=has_login)
 
     # 5. Save temporary screenshot to disk
-    import uuid
     file_id = f"screenshot_{uuid.uuid4().hex[:12]}.png"
     save_path = TEMP_SCREENSHOTS_DIR / file_id
     image.save(save_path, format="PNG")
