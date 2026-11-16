@@ -1,10 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
-
-:: Set window title
 TITLE VLM Phishing Detection System - Launcher
-
-:: Ensure script runs from the repository root directory
 cd /d "%~dp0"
 
 echo ======================================================================
@@ -14,50 +9,32 @@ echo.
 
 :: 1. Verify Python availability
 where python >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python was not found in your PATH.
-    echo Please install Python 3.11+ and ensure "Add Python to PATH" is checked.
-    echo.
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto :no_python
 
 :: 2. Verify Node.js and npm availability
 where npm >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Node.js / npm was not found in your PATH.
-    echo Please install Node.js (v18+) to run the frontend application.
-    echo.
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto :no_npm
 
-:: 3. Setup Python Virtual Environment
-if not exist ".venv\Scripts\activate.bat" (
-    echo [*] Virtual environment (.venv) not found. Initializing...
-    python -m venv .venv
-    if %ERRORLEVEL% NEQ 0 (
-        echo [ERROR] Failed to create Python virtual environment.
-        pause
-        exit /b 1
-    )
-    echo [*] Installing backend dependencies from requirements.txt...
-    call .venv\Scripts\activate.bat
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-) else (
-    echo [*] Found existing Python virtual environment (.venv).
-)
+:: 3. Setup Python Virtual Environment if missing
+if exist ".venv\Scripts\activate.bat" goto :venv_ok
+echo [*] Virtual environment (.venv) not found. Initializing...
+python -m venv .venv
+if errorlevel 1 goto :venv_failed
+echo [*] Installing backend dependencies from requirements.txt...
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+:venv_ok
+echo [*] Python virtual environment verified.
 
-:: 4. Verify Frontend Dependencies
-if not exist "frontend\node_modules\" (
-    echo [*] Frontend dependencies (node_modules) not found. Installing...
-    cd frontend
-    call npm install
-    cd /d "%~dp0"
-) else (
-    echo [*] Frontend dependencies verified.
-)
+:: 4. Verify Frontend Dependencies if missing
+if exist "frontend\node_modules\" goto :node_ok
+echo [*] Frontend dependencies (node_modules) not found. Installing...
+cd frontend
+call npm install
+cd /d "%~dp0"
+:node_ok
+echo [*] Frontend dependencies verified.
 
 echo.
 echo ----------------------------------------------------------------------
@@ -93,7 +70,27 @@ echo ======================================================================
 echo.
 echo   [INFO] Both servers are now active in their respective windows.
 echo   [INFO] To terminate the servers, simply close their terminal windows
-echo          or press Ctrl+C in each window.
+echo          or double-click stop.bat.
 echo.
 echo Press any key to exit this launcher window (servers will stay running)...
 pause >nul
+exit /b 0
+
+:no_python
+echo [ERROR] Python was not found in your PATH.
+echo Please install Python 3.11+ and ensure Add Python to PATH is selected.
+echo.
+pause
+exit /b 1
+
+:no_npm
+echo [ERROR] Node.js / npm was not found in your PATH.
+echo Please install Node.js (v18+) to run the frontend application.
+echo.
+pause
+exit /b 1
+
+:venv_failed
+echo [ERROR] Failed to create Python virtual environment.
+pause
+exit /b 1

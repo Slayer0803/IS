@@ -6,7 +6,6 @@ import AnalysisBreakdown from './components/AnalysisBreakdown';
 import ExplainabilityCard from './components/ExplainabilityCard';
 import DashboardMetrics from './components/DashboardMetrics';
 import RecentScansTable from './components/RecentScansTable';
-import ModelComparisonModal from './components/ModelComparisonModal';
 import { analyzeUrl, fetchScans, fetchScanDetails, deleteScan, fetchDashboardStats } from './services/api';
 import { AlertCircle, RefreshCw, Sparkles, Shield, Cpu } from 'lucide-react';
 
@@ -17,7 +16,6 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showBenchmarkModal, setShowBenchmarkModal] = useState(false);
 
   // Initial data load
   const loadDashboardData = async () => {
@@ -85,7 +83,6 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#080d1a] text-slate-100">
       <Navbar
-        onOpenBenchmark={() => setShowBenchmarkModal(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
@@ -164,12 +161,6 @@ export default function App() {
           </div>
         )}
       </main>
-
-      {/* Model Comparison Benchmark Modal */}
-      <ModelComparisonModal
-        isOpen={showBenchmarkModal}
-        onClose={() => setShowBenchmarkModal(false)}
-      />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-[#070b14] py-8 text-center text-xs text-slate-500">

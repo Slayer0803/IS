@@ -1,7 +1,7 @@
 import React from 'react';
-import { Shield, Eye, Cpu, Database, Activity, GitCompare } from 'lucide-react';
+import { Shield, Eye, Activity } from 'lucide-react';
 
-export default function Navbar({ onOpenBenchmark, activeTab, setActiveTab }) {
+export default function Navbar({ activeTab, setActiveTab }) {
   return (
     <header className="border-b border-slate-800 bg-[#0b1329]/90 backdrop-blur sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -51,15 +51,6 @@ export default function Navbar({ onOpenBenchmark, activeTab, setActiveTab }) {
           >
             <Activity className="w-4 h-4" />
             <span>Analytics</span>
-          </button>
-
-          <button
-            onClick={onOpenBenchmark}
-            className="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition flex items-center space-x-1.5 text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20"
-          >
-            <GitCompare className="w-4 h-4" />
-            <span className="hidden sm:inline">5-Model</span>
-            <span>Benchmark</span>
           </button>
         </div>
       </div>

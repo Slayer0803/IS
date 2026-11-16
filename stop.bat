@@ -17,3 +17,4 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5173 "') do (
 echo.
 echo [*] All servers stopped cleanly.
 timeout /t 2 /nobreak >nul
+

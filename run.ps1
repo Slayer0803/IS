@@ -70,3 +70,4 @@ Write-Host "====================================================================
 Write-Host ""
 Write-Host "Servers are running in background console windows."
 Write-Host "To stop servers, close their windows or run: .\stop.bat"
+
